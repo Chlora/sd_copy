@@ -1,0 +1,4 @@
+.vscode/settings.json
+makefile
+lib/liblist.a
+.vscode/c_cpp_properties.json
