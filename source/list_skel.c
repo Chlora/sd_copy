@@ -290,7 +290,7 @@ static void handle_getmodels(MessageT *msg, struct list_t *list) {
     set_success(msg, MESSAGE_T__C_TYPE__CT_MODEL);
 }
 
-static void handle_getlistbytear(MessageT *msg, struct list_t *list) {
+static void handle_getlistbyear(MessageT *msg, struct list_t *list) {
     if (msg->c_type != MESSAGE_T__C_TYPE__CT_NONE) {
         set_error(msg);
         return;
@@ -323,17 +323,20 @@ static void handle_getlistbytear(MessageT *msg, struct list_t *list) {
 }
 
 static void handle_del(MessageT *msg, struct list_t *list) {
-    if (msg->c_type != MESSAGE_T__C_TYPE__CT_MODEL || msg->models == NULL) {
+    if (msg->c_type != MESSAGE_T__C_TYPE__CT_MODEL || msg->models == NULL || 
+        msg->n_models == 0 || msg->models[0] == NULL) {
         set_error(msg);
         return;
     }
 
-    if (list_remove_by_model(list, msg->models[0]) == -1) {
+    int result = list_remove_by_model(list, msg->models[0]);
+    if (result != 0) {
         set_error(msg);
         return;
     }
 
-    set_success(msg, MESSAGE_T__C_TYPE__CT_NONE);
+    msg->result = result;
+    set_success(msg, MESSAGE_T__C_TYPE__CT_RESULT);
 }
 
 static void handle_size(MessageT *msg, struct list_t *list) {
@@ -373,7 +376,7 @@ int invoke(MessageT *msg, struct list_t *list) {
             break;
 
         case MESSAGE_T__OPCODE__OP_GETLISTBYTEAR:
-            handle_getlistbytear(msg, list);
+            handle_getlistbyear(msg, list);
             break;
 
         case MESSAGE_T__OPCODE__OP_DEL:
