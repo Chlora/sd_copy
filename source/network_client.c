@@ -147,10 +147,9 @@ int network_connect(struct rlist_t *rlist) {
         return -1;
     }
     
-    printf("[CLIENT] Connected to %s:%d (socket fd=%d)\n", 
+    printf("Connected to %s:%d\n", 
            rlist->server_address, 
-           rlist->server_port,
-           rlist->sockfd);
+           rlist->server_port);
     
     return 0;
 }

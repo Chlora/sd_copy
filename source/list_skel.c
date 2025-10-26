@@ -1,7 +1,7 @@
 /**
- * @file list_skel.h
+ * @file list_skel.c
  * 
- * @brief
+ * @brief Server-side skeleton implementation for list operations
  * 
  * SD-12
  * @author Rodrigo Antunes - 57879
@@ -193,9 +193,6 @@ int invoke(MessageT *msg, struct list_t *list) {
     if (msg == NULL || list == NULL) {
         return -1;
     }
-
-    // Debug print
-    debug_message("INCOMING REQUEST", msg);
 
     switch (msg->opcode) {
         case MESSAGE_T__OPCODE__OP_ADD:

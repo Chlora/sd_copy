@@ -1,7 +1,7 @@
 /**
- * @file list_server.h
+ * @file list_server.c
  * 
- * @brief
+ * @brief Server-side implementation for list operations
  * 
  * SD-12
  * @author Rodrigo Antunes - 57879

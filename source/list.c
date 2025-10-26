@@ -1,3 +1,14 @@
+/**
+ * @file list.c
+ * 
+ * @brief Implementation of list data structure functions
+ * 
+ * SD-12
+ * @author Rodrigo Antunes - 57879
+ * @author Rodrigo Santos - 61825
+ * @author Teresa Grangeia - 61869
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

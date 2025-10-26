@@ -1,5 +1,16 @@
+/**
+ * @file data.c
+ * 
+ * @brief Implementation of data structure functions
+ * 
+ * SD-12
+ * @author Rodrigo Antunes - 57879
+ * @author Rodrigo Santos - 61825
+ * @author Teresa Grangeia - 61869
+ */
+
 #include <stdio.h>
-#include "../include/data.h"
+#include "data.h"
 #include <stdlib.h>
 #include <string.h>
 

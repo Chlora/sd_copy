@@ -1,8 +1,20 @@
-#include "../include/data.h"
-#include "../include/list.h"
+/**
+ * @file nclient_stub.c
+ * 
+ * @brief Client stub implementation for remote list operations
+ * 
+ * SD-12
+ * @author Rodrigo Antunes - 57879
+ * @author Rodrigo Santos - 61825
+ * @author Teresa Grangeia - 61869
+ */
 
-#include "../include/client_stub-private.h"
-#include "../include/network_client.h"
+#include "data.h"
+#include "list.h"
+#include "client_stub-private.h"
+#include "network_client.h"
+#include "message-private.h"
+
 
 #include "arpa/inet.h"
 #include <stdio.h>
@@ -256,7 +268,7 @@ struct data_t **rlist_get_by_year(struct rlist_t *rlist, int ano){
     if(reply == NULL) return NULL;
 
     struct data_t **array = NULL;
-    if(reply->opcode ==MESSAGE_T__OPCODE__OP_GETLISTBYTEAR + 1 && reply->n_cars >0) {
+    if(reply->opcode == MESSAGE_T__OPCODE__OP_GET + 1 && reply->n_cars >0) {
         array = malloc((reply->n_cars + 1) * sizeof(struct data_t *));
         if(array){
             for(size_t i = 0; i< reply->n_cars; i++)
@@ -283,6 +295,17 @@ int rlist_order_by_year(struct rlist_t *rlist){
     if(reply==NULL) return -1;
 
     int res = (reply->opcode == MESSAGE_T__OPCODE__OP_GETLISTBYTEAR +1 ) ? 0: -1;
+
+    struct data_t **array = pb_to_data_array(reply->cars, reply->n_cars);
+
+    printf("Lista de carros ordenada por ano:\n");
+    for (int i = 0; array[i] != NULL; i++) {
+        struct data_t *car = array[i];
+        printf("Modelo: %s, Marca: %d, Ano: %d\n", car->modelo, car->marca, car->ano);
+        data_destroy(car);
+    }
+    free(array);
+
     message_t__free_unpacked(reply,NULL);
     return res;
 }

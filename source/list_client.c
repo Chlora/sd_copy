@@ -1,14 +1,25 @@
+/**
+ * @file list_client.c
+ * 
+ * @brief Client-side implementation for remote list operations
+ * 
+ * SD-12
+ * @author Rodrigo Antunes - 57879
+ * @author Rodrigo Santos - 61825
+ * @author Teresa Grangeia - 61869
+ */
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../include/client_stub.h"
-#include "../include/client_stub-private.h"
-#include "../include/network_client.h"
+#include "client_stub.h"
+#include "client_stub-private.h"
+#include "network_client.h"
 
-#include "../include/data.h"
-#include "../include/list.h"
-#include "../include/list-private.h"
+#include "data.h"
+#include "list.h"
+#include "list-private.h"
 
 struct rlist_t *rlist = NULL;
 
@@ -128,20 +139,11 @@ int commandGetListOrderedByYear() {
         return -1;
     }
 
-    struct data_t **array = rlist_get_by_year(rlist, -1);
+    /* struct data_t **array = rlist_get_by_year(rlist, -1);
     if (array == NULL) {
         printf("ERRO : Falha ao converter a lista ordenada por ano.\n");
         return -1;
-    }
-    printf("Lista de carros ordenada por ano:\n");
-    for (int i = 0; array[i] != NULL; i++) {
-        struct data_t *car = array[i];
-        printf("Modelo: %s, Marca: %d, Ano: %d\n", car->modelo, car->marca, car->ano);
-        data_destroy(car);
-    }
-    free(array);
-
-
+    } */
     return 0;
 }
 
@@ -172,6 +174,20 @@ int commandSize() {
 
 int commandQuit() {
     quitSignal = 1;
+    return 0;
+}
+
+static int print_cli() {
+    printf("\nComandos:\n");
+    printf("add <ano> <preco> <marca> <modelo> <combustivel>\n");
+    printf("get_by_marca <marca>\n");
+    printf("get_by_year <year>\n");
+    printf("get_model_list\n");
+    printf("get_list_ordered_by_year\n");
+    printf("remove <model>\n");
+    printf("size\n");
+    printf("quit\n");
+    printf("help\n");
     return 0;
 }
 
@@ -232,6 +248,9 @@ int handleArguments(int argc, char *argv[]) {
     if (strcmp(command, "quit") == 0) {
         return commandQuit();
     }
+    if (strcmp(command, "help") == 0) {
+        return print_cli();
+    }
 
     printf("ERRO : Comando desconhecido '%s'.\n", command);
     return -1;
@@ -250,6 +269,8 @@ int main(int argc, char *argv[]) {
         printf("Erro ao conectar ao servidor %s\n", argv[1]);
         return -1;
     }
+
+    print_cli();
 
     //loop de esperar comandos
     char input[128];

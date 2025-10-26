@@ -1,7 +1,7 @@
 /**
  * @file network_server.c
  * 
- * @brief
+ * @brief Server-side network communication module
  * 
  * SD-12
  * @author Rodrigo Antunes - 57879
