@@ -17,10 +17,10 @@ int quitSignal = 0;
 
 
 int commandAdd(char *data[5]) {
-    int ano = atoi(data[0]);
-    float preco = atof(data[1]);
-    int marca_int = atoi(data[2]);
-    const char *modelo = data[3];
+    const char *modelo = data[0];
+    int ano = atoi(data[1]);
+    float preco = atof(data[2]);
+    int marca_int = atoi(data[3]);
     int combustivel_int = atoi(data[4]);
 
     if (marca_int < 0 || marca_int > 4) {

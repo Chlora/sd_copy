@@ -239,7 +239,7 @@ struct data_t **rlist_get_by_year(struct rlist_t *rlist, int ano){
     if(rlist==NULL) return NULL;
 
     MessageT msg = MESSAGE_T__INIT;
-    msg.opcode= MESSAGE_T__OPCODE__OP_GETLISTBYTEAR;
+    msg.opcode= MESSAGE_T__OPCODE__OP_GET;
     msg.c_type = MESSAGE_T__C_TYPE__CT_YEAR;
     
     Data *tmp = malloc(sizeof(Data));
@@ -276,13 +276,13 @@ int rlist_order_by_year(struct rlist_t *rlist){
     if(rlist==NULL) return -1;
 
     MessageT msg = MESSAGE_T__INIT;
-    msg.opcode=MESSAGE_T__OPCODE__OP_ORDER;
+    msg.opcode=MESSAGE_T__OPCODE__OP_GETLISTBYTEAR;
     msg.c_type = MESSAGE_T__C_TYPE__CT_NONE;
 
     MessageT *reply = network_send_receive(rlist, &msg);
     if(reply==NULL) return -1;
 
-    int res = (reply->opcode == MESSAGE_T__OPCODE__OP_ORDER +1 ) ? 0: -1;
+    int res = (reply->opcode == MESSAGE_T__OPCODE__OP_GETLISTBYTEAR +1 ) ? 0: -1;
     message_t__free_unpacked(reply,NULL);
     return res;
 }
