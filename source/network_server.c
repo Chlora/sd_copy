@@ -10,6 +10,7 @@
  */
 
 #include "network_server.h"
+#include "message-private.h"
 #include "list_skel.h"
 #include "sdmessage.pb-c.h"
 #include <stdio.h>
@@ -25,48 +26,6 @@
 #define BACKLOG 5
 
 static volatile sig_atomic_t server_running = 1;
-
-static ssize_t read_all(int socket, void *buffer, size_t n) {
-    size_t bytes_read = 0;
-    ssize_t result;
-    char *buf = (char *)buffer;
-    
-    while (bytes_read < n) {
-        result = read(socket, buf + bytes_read, n - bytes_read);
-        
-        if (result < 0) {
-            if (errno == EINTR) continue;
-            return -1;
-        }
-        
-        if (result == 0) {
-            return (bytes_read > 0) ? bytes_read : 0;
-        }
-        
-        bytes_read += result;
-    }
-    
-    return bytes_read;
-}
-
-static ssize_t write_all(int socket, const void *buffer, size_t n) {
-    size_t bytes_written = 0;
-    ssize_t result;
-    const char *buf = (const char *)buffer;
-    
-    while (bytes_written < n) {
-        result = write(socket, buf + bytes_written, n - bytes_written);
-        
-        if (result < 0) {
-            if (errno == EINTR) continue;
-            return -1;
-        }
-        
-        bytes_written += result;
-    }
-    
-    return bytes_written;
-}
 
 MessageT *network_receive(int client_socket) {
     uint16_t msg_size_net;
