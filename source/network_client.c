@@ -25,7 +25,7 @@
 
 struct rlist_t;
 
-static ssize_t send_all(int sockfd, const void *buf, size_t len) {
+/* static ssize_t send_all(int sockfd, const void *buf, size_t len) {
     size_t total = 0;
     const uint8_t *p = buf;
 
@@ -61,7 +61,7 @@ static ssize_t recv_all(int sockfd, void *buf, size_t len) {
         total += (size_t)n;
     }
     return (ssize_t)total;
-}
+} */
 
 /* Esta função deve:
  * - Obter o endereço do servidor (struct sockaddr_in) com base na
@@ -165,7 +165,7 @@ int network_connect(struct rlist_t *rlist) {
  * - Retornar a mensagem de-serializada ou NULL em caso de erro.
  */
 MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
-    if (rlist == NULL || msg == NULL) {
+    /* if (rlist == NULL || msg == NULL) {
         fprintf(stderr, "network_send_receive: invalid arguments\n");
         return NULL;
     }
@@ -235,9 +235,109 @@ MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
         return NULL;
     }
 
-    return reply_msg;
+    return reply_msg; */
 
+    if (rlist == NULL || msg == NULL) {
+        fprintf(stderr, "[ERROR] Invalid arguments to network_send_receive\n");
+        return NULL;
+    }
     
+    if (rlist->sockfd < 0) {
+        fprintf(stderr, "[ERROR] Not connected to server\n");
+        return NULL;
+    }
+    
+    
+    // Determine message size
+    
+    size_t msg_size = message_t__get_packed_size(msg);
+    
+    if (msg_size > UINT16_MAX) {
+        fprintf(stderr, "[ERROR] Message too large (%zu bytes, max %d)\n", 
+                msg_size, UINT16_MAX);
+        return NULL;
+    }
+    
+    
+    // Serialize message to buffer
+    
+    uint8_t *buffer = malloc(msg_size);
+    if (buffer == NULL) {
+        perror("[ERROR] Failed to allocate serialization buffer");
+        return NULL;
+    }
+    
+    size_t packed_size = message_t__pack(msg, buffer);
+    if (packed_size != msg_size) {
+        fprintf(stderr, "[ERROR] Serialization size mismatch\n");
+        free(buffer);
+        return NULL;
+    }
+    
+    
+    // Send message size (2 bytes, network byte order)
+    
+    uint16_t msg_size_net = htons((uint16_t)msg_size);
+    if (write_all(rlist->sockfd, &msg_size_net, sizeof(uint16_t)) != sizeof(uint16_t)) {
+        perror("[ERROR] Failed to send message size");
+        free(buffer);
+        return NULL;
+    }
+    
+    
+    // Send serialized message
+    
+    if (write_all(rlist->sockfd, buffer, msg_size) != (ssize_t)msg_size) {
+        perror("[ERROR] Failed to send message");
+        free(buffer);
+        return NULL;
+    }
+    
+    free(buffer);
+    buffer = NULL;
+    
+    
+    // Receive response size (2 bytes, network byte order)
+    
+    uint16_t response_size_net;
+    if (read_all(rlist->sockfd, &response_size_net, sizeof(uint16_t)) != sizeof(uint16_t)) {
+        perror("[ERROR] Failed to receive response size");
+        return NULL;
+    }
+    
+    uint16_t response_size = ntohs(response_size_net);
+    
+    if (response_size == 0) {
+        fprintf(stderr, "[ERROR] Invalid response size (0)\n");
+        return NULL;
+    }
+    
+    // Receive serialized response
+    uint8_t *response_buffer = malloc(response_size);
+    if (response_buffer == NULL) {
+        perror("[ERROR] Failed to allocate response buffer");
+        return NULL;
+    }
+    
+    ssize_t bytes_received = read_all(rlist->sockfd, response_buffer, response_size);
+    if (bytes_received != response_size) {
+        fprintf(stderr, "[ERROR] Failed to receive complete response (got %zd, expected %u)\n",
+                bytes_received, response_size);
+        free(response_buffer);
+        return NULL;
+    }
+    
+
+    // Deserialize response
+    MessageT *response = message_t__unpack(NULL, response_size, response_buffer);
+    free(response_buffer);
+    
+    if (response == NULL) {
+        fprintf(stderr, "[ERROR] Failed to deserialize response\n");
+        return NULL;
+    }
+    
+    return response;
 }
 
 /* Fecha a ligação estabelecida por network_connect().
