@@ -17,7 +17,42 @@ int quitSignal = 0;
 
 
 int commandAdd(char *data[5]) {
+    int ano = atoi(data[0]);
+    float preco = atof(data[1]);
+    int marca_int = atoi(data[2]);
+    const char *modelo = data[3];
+    int combustivel_int = atoi(data[4]);
+
+    if (marca_int < 0 || marca_int > 4) {
+        printf("ERRO : Marca inválida '%d'.\n", marca_int);
+        printf("Marcas válidas:\n0 - TOYOTA\n1 - BMW\n2 - RENAULT\n3 - AUDI\n4 - MERCEDES\n");
+        return -1;
+    }
+    enum marca_t marca_enum = (enum marca_t) marca_int;
+
     
+    if (combustivel_int < 0 || combustivel_int > 3) {
+        printf("ERRO : Combustível inválido '%d'.\n", combustivel_int);
+        printf("Combustíveis válidos:\n0 - GASOLINA\n1 - GASOLEO\n2 - ELETRICO\n3 - HIBRIDO\n");
+        return -1;
+    }
+    enum combustivel_t combustivel_enum = (enum combustivel_t) combustivel_int;
+
+    struct data_t *car = data_create(ano, preco, marca_enum, modelo, combustivel_enum);
+    if (car == NULL) {
+        printf("ERRO : Falha ao criar o carro com os dados fornecidos.\n");
+        return -1;
+    }
+
+    int result = rlist_add(rlist, car);
+    data_destroy(car);
+
+    if (result == -1) {
+        printf("ERRO : Falha ao adicionar o carro à lista remota.\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 
@@ -133,18 +168,18 @@ int handleArguments(int argc, char *argv[]) {
     }
     char *command = argv[0];
     char *param = NULL;
-    if (argc > 2) {
+    if (argc > 1) {
         param = argv[1];
     }
 
 
     if (strcmp(command, "add") == 0) {
-        if(!param) {
-            printf("ERRO : Tem de haver um argumento 'data' após o comando '%s'.\n", command);
+        if (argc < 6) {
+            printf("ERRO : Tem de haver 5 argumentos 'ano', 'preco', 'marca', 'modelo', 'combustivel' após o comando '%s'.\n", command);
             return -1;
         }
         char *data[5];
-        for(int i = 1; i < argc; i++){
+        for(int i = 1; i < 6; i++){
             data[i-1] = argv[i];
         }
         return commandAdd(data);
