@@ -127,6 +127,21 @@ int commandGetListOrderedByYear() {
         printf("ERRO : Falha ao ordenar a lista por ano.\n");
         return -1;
     }
+
+    struct data_t **array = rlist_get_by_year(rlist, -1);
+    if (array == NULL) {
+        printf("ERRO : Falha ao converter a lista ordenada por ano.\n");
+        return -1;
+    }
+    printf("Lista de carros ordenada por ano:\n");
+    for (int i = 0; array[i] != NULL; i++) {
+        struct data_t *car = array[i];
+        printf("Modelo: %s, Marca: %d, Ano: %d\n", car->modelo, car->marca, car->ano);
+        data_destroy(car);
+    }
+    free(array);
+
+
     return 0;
 }
 
