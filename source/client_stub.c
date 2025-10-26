@@ -9,7 +9,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+int matchMarca(enum marca_t marca) {
+    if (marca == MARCA_TOYOTA) return 0;
+    if (marca == MARCA_BMW) return 1;
+    if (marca == MARCA_RENAULT) return 2;
+    if (marca == MARCA_AUDI) return 3;
+    if (marca == MARCA_MERCEDES) return 4;
 
+    return -1;
+}
+
+int matchCombustivel(enum combustivel_t combustivel) {
+    if (combustivel == COMBUSTIVEL_GASOLINA) return 0;
+    if (combustivel == COMBUSTIVEL_GASOLEO) return 1;
+    if (combustivel == COMBUSTIVEL_ELETRICO) return 2;
+    if (combustivel == COMBUSTIVEL_HIBRIDO) return 3;
+
+    return -1;
+}
 
 static Data *convert_to_proto_data(struct data_t *car){
     if(car == NULL) return NULL;
@@ -20,9 +37,10 @@ static Data *convert_to_proto_data(struct data_t *car){
     data__init(proto_car);
     proto_car->ano = car->ano;
     proto_car-> preco=car->preco;
-    proto_car -> marca = (Marca)car->marca;
+
+    proto_car -> marca = (enum marca_t) matchMarca(car->marca);
     proto_car-> modelo = strdup(car->modelo);
-    proto_car-> combustivel = (Combustivel)car->combustivel;
+    proto_car-> combustivel = (enum combustivel_t) matchCombustivel(car->combustivel);
 
     return proto_car;
 }
@@ -221,7 +239,7 @@ struct data_t **rlist_get_by_year(struct rlist_t *rlist, int ano){
     if(rlist==NULL) return NULL;
 
     MessageT msg = MESSAGE_T__INIT;
-    msg.opcode=MESSAGE_T__OPCODE__OP_GETLISTBYEAR;
+    msg.opcode= MESSAGE_T__OPCODE__OP_GETLISTBYTEAR;
     msg.c_type = MESSAGE_T__C_TYPE__CT_YEAR;
     
     Data *tmp = malloc(sizeof(Data));
