@@ -29,38 +29,102 @@ int commandGetByMarca(char *marca) {
         marca_enum = MARCA_BMW;
     } else if (strcmp(marca, "AUDI") == 0) {
         marca_enum = MARCA_AUDI;
+    } else if (strcmp(marca, "RENAULT") == 0) {
+        marca_enum = MARCA_RENAULT;
+    } else if (strcmp(marca, "MERCEDES") == 0) {
+        marca_enum = MARCA_MERCEDES;
     } else {
         printf("ERRO : Marca desconhecida '%s'.\n", marca);
+        printf("Marcas válidas: TOYOTA, BMW, AUDI, RENAULT, MERCEDES.\n");
         return -1;
     }
 
-    rlist_get_by_marca(rlist, marca_enum);
+    struct data_t *result = rlist_get_by_marca(rlist, marca_enum);
+    if (result == NULL) {
+        printf("ERRO : Falha ao obter carro da marca %s.\n", marca);
+        return -1;
+    }
+    printf("Carro da marca %s:\n", marca);
+    printf("Modelo: %s, Marca: %d, Ano: %d\n", result->modelo, result->marca, result->ano);
+    data_destroy(result);
+    
+    return 0;
 }
 
 
 int commandGetByYear(char *year) {
     int year_int = atoi(year);
-    rlist_get_by_year(rlist, year_int);
+    struct data_t **result = rlist_get_by_year(rlist, year_int);
+
+    if (result == NULL) {
+        printf("ERRO : Falha ao obter carros do ano %d.\n", year_int);
+        return -1;
+    }
+    if (result[0] == NULL) {
+        printf("Nenhum carro encontrado do ano %d.\n", year_int);
+        free(result);
+        return 0;
+    }
+    printf("Carros do ano %d:\n", year_int);
+    for (int i = 0; result[i] != NULL; i++) {
+        struct data_t *car = result[i];
+        printf("Modelo: %s, Marca: %d, Ano: %d\n", car->modelo, car->marca, car->ano);
+        data_destroy(car);
+    }
+    free(result);
+
+    return 0;
 }
 
 
 int commandGetModelList() {
-    rlist_get_model_list(rlist);
+    char **arr = rlist_get_model_list(rlist);
+    if (arr == NULL) {
+        printf("ERRO : Falha ao obter a lista de modelos.\n");
+        return -1;
+    }
+    printf("Lista de modelos:\n");
+    for (int i = 0; arr[i] != NULL; i++) {
+        printf("%s\n", arr[i]);
+        free(arr[i]);
+    }
+    free(arr);
+
+    return 0;
 }
 
 
 int commandGetListOrderedByYear() {
-    return rlist_order_by_year(rlist);
+    int result = rlist_order_by_year(rlist);
+    if (result == -1) {
+        printf("ERRO : Falha ao ordenar a lista por ano.\n");
+        return -1;
+    }
+    return 0;
 }
 
 
 int commandRemove(char *model) {
-    return rlist_remove_by_model(rlist, model);
+    int result = rlist_remove_by_model(rlist, model);
+    if (result == -1) {
+        printf("ERRO : Falha ao remover o carro com modelo '%s'.\n", model);
+        return -1;
+    }
+    if (result == 0) {
+        printf("Nenhum carro encontrado com modelo '%s' para remover.\n", model);
+    }
+    return 0;
 }
 
 
 int commandSize() {
-    return rlist_size(rlist);
+    int result = rlist_size(rlist);
+    if (result == -1) {
+        printf("ERRO : Falha ao obter o tamanho da lista.\n");
+        return -1;
+    }
+    printf("Tamanho da lista: %d\n", result);
+    return 0;
 }
 
 
