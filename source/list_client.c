@@ -47,7 +47,7 @@ int commandGetByMarca(char *marca) {
     printf("Carro da marca %s:\n", marca);
     printf("Modelo: %s, Marca: %d, Ano: %d\n", result->modelo, result->marca, result->ano);
     data_destroy(result);
-    
+
     return 0;
 }
 
@@ -86,9 +86,9 @@ int commandGetModelList() {
     printf("Lista de modelos:\n");
     for (int i = 0; arr[i] != NULL; i++) {
         printf("%s\n", arr[i]);
-        free(arr[i]);
     }
-    free(arr);
+
+    rlist_free_model_list(arr);
 
     return 0;
 }
@@ -193,13 +193,12 @@ int handleArguments(int argc, char *argv[]) {
 
 
 int main(int argc, char *argv[]) {
-    //validar argumentos iniciais (list_client address:port)
     if (argc != 2) {
         printf("Uso: list_client address:port\n");
         return -1;
     }
 
-    //establecer ligacao
+    //conectar
     rlist = rlist_connect(argv[1]);
     if (!rlist) {
         printf("Erro ao conectar ao servidor %s\n", argv[1]);
@@ -218,14 +217,14 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        // remove newline
+        //remover newline
         input[strcspn(input, "\n")] = '\0';
 
         if (strcmp(input, "") == 0) {
             continue;
         }
 
-        // Tokenize input
+        //tokenizar input
         char *argv2[MAX_ARGS];
         int argc2 = 0;
 
@@ -236,8 +235,19 @@ int main(int argc, char *argv[]) {
         }
 
         int result = handleArguments(argc2, argv2);
+        if (result == -1) {
+            printf("Erro ao executar o comando. Quaisquer operações foram descartadas.\n");
+        } else {
+            printf("Comando executado com sucesso.\n");
+        }
     }
 
     //cleanup
-    rlist_disconnect(rlist);
+    int result = rlist_disconnect(rlist);
+    if (result != 0) {
+        printf("Erro ao desconectar do servidor.\n");
+        return -1;
+    }
+
+    return 0;
 }
