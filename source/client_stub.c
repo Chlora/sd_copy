@@ -9,7 +9,35 @@
 #include <stdlib.h>
 #include <string.h>
 
-int eventDC = 0;
+
+
+static Data *convert_to_proto_data(struct data_t *car){
+    if(car == NULL) return NULL;
+
+    Data *proto_car = malloc(sizeof(Data));
+    if(proto_car == NULL) return NULL;
+
+    data__init(proto_car);
+    proto_car->ano = car->ano;
+    proto_car-> preco=car->preco;
+    proto_car -> marca = (Marca)car->marca;
+    proto_car-> modelo = strdup(car->modelo);
+    proto_car-> combustivel = (Combustivel)car->combustivel;
+
+    return proto_car;
+}
+
+static struct data_t *convert_from_proto_data(Data *proto_car){
+    if(proto_car == NULL) return NULL;
+
+    return data_create(
+        proto_car->ano,
+        proto_car->preco,
+        (enum marca_t)proto_car->marca,
+        proto_car->modelo,
+        (enum combustivel_t)proto_car->combustivel
+    );
+}
 
 /* Remote list, deve conter as informações necessárias para comunicar
  * com o servidor. A definir pelo grupo em client_stub-private.h
@@ -94,15 +122,21 @@ int rlist_add(struct rlist_t *rlist, struct data_t *car) {
     MessageT msg = MESSAGE_T__INIT;
     msg.opcode = MESSAGE_T__OPCODE__OP_ADD;
     msg.c_type = MESSAGE_T__C_TYPE__CT_DATA;
-    msg.data = car;
+    
+    Data *proto_car = convert_to_proto_data(car);
+    if(proto_car == NULL) return -1;
+    msg.data = proto_car;
 
     // Send to server
     MessageT *reply = network_send_receive(rlist, &msg);
+
+    free(proto_car->modelo);
+    free(proto_car); 
     if (reply == NULL) {
         return -1;
     }
 
-    int result;
+    int result = -1;
     if (reply->opcode == MESSAGE_T__OPCODE__OP_ERROR) {
         result = -1;
     } else if (reply->opcode == MESSAGE_T__OPCODE__OP_ADD + 1) {
@@ -117,35 +151,179 @@ int rlist_add(struct rlist_t *rlist, struct data_t *car) {
 /* Remove da lista remota o primeiro carro que corresponda ao modelo indicado.
  * Retorna 0 se encontrou e removeu, 1 se não encontrou, ou -1 em caso de erro.
  */
-int rlist_remove_by_model(struct rlist_t *rlist, const char *modelo);
+int rlist_remove_by_model(struct rlist_t *rlist, const char *modelo){
+    if(rlist==NULL || modelo==NULL) return -1;
+
+    MessageT msg = MESSAGE_T__INIT;
+    msg.opcode=MESSAGE_T__OPCODE__OP_DEL;
+    msg.c_type = MESSAGE_T__C_TYPE__CT_MODEL;
+    
+    Data *tmp = malloc(sizeof(Data));
+    if(tmp==NULL) return -1;
+    data__init(tmp);
+    tmp->modelo = strdup(modelo);
+
+    msg.data=tmp;
+
+    MessageT *reply = network_send_receive(rlist, &msg);
+
+    free(tmp->modelo);
+    free(tmp);
+
+    if(reply == NULL) return -1;
+
+    int result = -1;
+    if(reply->opcode ==MESSAGE_T__OPCODE__OP_DEL + 1) 
+        result = reply->result;
+
+    message_t__free_unpacked(reply, NULL);
+    return result;
+    
+}
 
 /* Obtém o primeiro carro que corresponda à marca indicada.
  * Retorna ponteiro para os dados ou NULL se não encontrar ou em caso de erro.
  */
-struct data_t *rlist_get_by_marca(struct rlist_t *rlist, enum marca_t marca);
+struct data_t *rlist_get_by_marca(struct rlist_t *rlist, enum marca_t marca){
+    if(rlist==NULL) return NULL;
+
+    MessageT msg = MESSAGE_T__INIT;
+    msg.opcode=MESSAGE_T__OPCODE__OP_GET;
+    msg.c_type = MESSAGE_T__C_TYPE__CT_MARCA;
+    
+    Data *tmp = malloc(sizeof(Data));
+    if(tmp==NULL) return NULL;
+    data__init(tmp);
+    tmp->marca = marca;
+
+    msg.data=tmp;
+
+    MessageT *reply = network_send_receive(rlist, &msg);
+
+    free(tmp);
+
+    if(reply == NULL) return NULL;
+
+    struct data_t *result = NULL;
+    if(reply->opcode ==MESSAGE_T__OPCODE__OP_GET + 1 && reply->data) 
+        result = convert_from_proto_data(reply->data);
+
+    message_t__free_unpacked(reply, NULL);
+    return result;
+}
 
 /* Obtém um array de ponteiros para carros de um determinado ano.
  * O último elemento do array é NULL.
  * Retorna o array ou NULL em caso de erro.
  */
-struct data_t **rlist_get_by_year(struct rlist_t *rlist, int ano);
+struct data_t **rlist_get_by_year(struct rlist_t *rlist, int ano){
+
+    if(rlist==NULL) return NULL;
+
+    MessageT msg = MESSAGE_T__INIT;
+    msg.opcode=MESSAGE_T__OPCODE__OP_GETLISTBYEAR;
+    msg.c_type = MESSAGE_T__C_TYPE__CT_YEAR;
+    
+    Data *tmp = malloc(sizeof(Data));
+    if(tmp==NULL) return NULL;
+    data__init(tmp);
+    tmp->ano = ano;
+
+    msg.data=tmp;
+
+    MessageT *reply = network_send_receive(rlist, &msg);
+
+    free(tmp);
+
+    if(reply == NULL) return NULL;
+
+    struct data_t **array = NULL;
+    if(reply->opcode ==MESSAGE_T__OPCODE__OP_GETLISTBYTEAR + 1 && reply->n_cars >0) {
+        array = malloc((reply->n_cars + 1) * sizeof(struct data_t *));
+        if(array){
+            for(size_t i = 0; i< reply->n_cars; i++)
+                array[i] = convert_from_proto_data(reply->cars[i]);
+            array[reply->n_cars] = NULL;
+        }
+    }
+
+    message_t__free_unpacked(reply, NULL);
+    return array;
+}
 
 /* Ordena a lista remota de carros por ano de fabrico (crescente).
  * Retorna 0 (OK) ou -1 em caso de erro.
  */
-int rlist_order_by_year(struct rlist_t *rlist);
+int rlist_order_by_year(struct rlist_t *rlist){
+    if(rlist==NULL) return -1;
+
+    MessageT msg = MESSAGE_T__INIT;
+    msg.opcode=MESSAGE_T__OPCODE__OP_ORDER;
+    msg.c_type = MESSAGE_T__C_TYPE__CT_NONE;
+
+    MessageT *reply = network_send_receive(rlist, &msg);
+    if(reply==NULL) return -1;
+
+    int res = (reply->opcode == MESSAGE_T__OPCODE__OP_ORDER +1 ) ? 0: -1;
+    message_t__free_unpacked(reply,NULL);
+    return res;
+}
 
 /* Retorna o número de carros na lista remota ou -1 em caso de erro.
  */
-int rlist_size(struct rlist_t *rlist);
+int rlist_size(struct rlist_t *rlist){
+    if(rlist==NULL) return -1;
+
+    MessageT msg = MESSAGE_T__INIT;
+    msg.opcode=MESSAGE_T__OPCODE__OP_SIZE;
+    msg.c_type = MESSAGE_T__C_TYPE__CT_NONE;
+
+    MessageT *reply = network_send_receive(rlist, &msg);
+    if(reply==NULL) return -1;
+
+    int size = -1;
+    if(reply->opcode == MESSAGE_T__OPCODE__OP_SIZE +1 ) size = reply->result;
+    message_t__free_unpacked(reply,NULL);
+    return size;
+}
 
 /* Constrói um array de strings com os modelos dos carros na lista remota.
  * O último elemento do array é NULL.
  * Retorna o array ou NULL em caso de erro.
  */
-char **rlist_get_model_list(struct rlist_t *rlist);
+char **rlist_get_model_list(struct rlist_t *rlist){
+    if(rlist==NULL) return NULL;
+
+    MessageT msg = MESSAGE_T__INIT;
+    msg.opcode=MESSAGE_T__OPCODE__OP_GETMODELS;
+    msg.c_type = MESSAGE_T__C_TYPE__CT_NONE;
+
+    MessageT *reply = network_send_receive(rlist, &msg);
+    if(reply==NULL) return NULL;
+
+    char **models = NULL;
+    if (reply->opcode == MESSAGE_T__OPCODE__OP_GETMODELS +1 && reply->n_models > 0 ){
+        models = malloc((reply->n_models +1) * sizeof(char *));
+        if(models){
+            for(size_t i = 0; i < reply->n_models; i++)
+                models[i] = strdup(reply->models[i]);
+            models[reply->n_models] = NULL;
+        }
+    }
+
+    message_t__free_unpacked(reply,NULL);
+    return models;
+}
 
 /* Liberta a memória ocupada pelo array de modelos.
  * Retorna 0 (OK) ou -1 em caso de erro.
  */
-int rlist_free_model_list(char **models);
+int rlist_free_model_list(char **models){
+    if (models == NULL) return -1;
+
+    for (int i =0; models[i] != NULL; i++){
+        free(models[i]);
+    }
+    free(models);
+    return 0;
+}
