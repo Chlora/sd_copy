@@ -1,18 +1,27 @@
-#include "client_stub.h"
-#include "sdmessage.pb-c.h"
-#include "client_stub-private.h"
+/**
+ * @file network_client.c
+ * 
+ * @brief Client-side network communication module
+ * 
+ * SD-12
+ * @author Rodrigo Antunes - 57879
+ * @author Rodrigo Santos - 61825
+ * @author Teresa Grangeia - 61869
+ */
 
+#include "network_client.h"
+#include "client_stub-private.h"
+#include "message-private.h"
+#include "sdmessage.pb-c.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <arpa/inet.h> 
 #include <errno.h>
-#include <stdint.h>
-
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
 struct rlist_t;
 
@@ -64,7 +73,7 @@ static ssize_t recv_all(int sockfd, void *buf, size_t len) {
  */
 int network_connect(struct rlist_t *rlist) {
 
-    char portbuf[16];
+    /* char portbuf[16];
     snprintf(portbuf, sizeof portbuf, "%d", rlist->server_port);
 
     struct addrinfo hints;
@@ -93,7 +102,57 @@ int network_connect(struct rlist_t *rlist) {
     }
 
     freeaddrinfo(res);
-    return -1;
+    return -1; */
+
+    if (rlist == NULL || rlist->server_address == NULL) {
+        fprintf(stderr, "[ERROR] Invalid rlist structure\n");
+        return -1;
+    }
+    
+    struct sockaddr_in server_addr;
+    struct hostent *host;
+    
+    // Create TCP socket
+    rlist->sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (rlist->sockfd < 0) {
+        perror("[ERROR] Failed to create socket");
+        return -1;
+    }
+    
+    // Resolve hostname to IP address
+    host = gethostbyname(rlist->server_address);
+    if (host == NULL) {
+        fprintf(stderr, "[ERROR] Could not resolve hostname: %s\n", 
+                rlist->server_address);
+        close(rlist->sockfd);
+        rlist->sockfd = -1;
+        return -1;
+    }
+    
+    // Setup server address structure
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(rlist->server_port);
+    memcpy(&server_addr.sin_addr.s_addr, 
+           host->h_addr_list[0], 
+           host->h_length);
+    
+    // Establish connection to server
+    if (connect(rlist->sockfd, 
+                (struct sockaddr *)&server_addr, 
+                sizeof(server_addr)) < 0) {
+        perror("[ERROR] Failed to connect to server");
+        close(rlist->sockfd);
+        rlist->sockfd = -1;
+        return -1;
+    }
+    
+    printf("[CLIENT] Connected to %s:%d (socket fd=%d)\n", 
+           rlist->server_address, 
+           rlist->server_port,
+           rlist->sockfd);
+    
+    return 0;
 }
 
 /* Esta função deve:

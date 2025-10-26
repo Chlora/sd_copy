@@ -26,6 +26,8 @@
 #define BACKLOG 5
 
 static volatile sig_atomic_t server_running = 1;
+static int listening_socket_global = -1;
+static int client_socket_global = -1;
 
 MessageT *network_receive(int client_socket) {
     uint16_t msg_size_net;
@@ -97,6 +99,9 @@ static int handle_client(int client_socket, struct list_t *list) {
     MessageT *request = NULL;
     int error = 0;
     
+    // Set global client socket for use in signal handlers
+    client_socket_global = client_socket;
+
     while (server_running && !error) {
         request = network_receive(client_socket);
         
@@ -123,6 +128,7 @@ static int handle_client(int client_socket, struct list_t *list) {
     }
     
     close(client_socket);
+    client_socket_global = -1;
     return error ? -1 : 0;
 }
 
@@ -173,6 +179,9 @@ int network_main_loop(int listening_socket, struct list_t *list) {
         return -1;
     }
     
+    // Set global listening socket for use in signal handlers
+    listening_socket_global = listening_socket;
+
     while (server_running) {
         client_addr_len = sizeof(client_addr);
         
@@ -197,6 +206,7 @@ int network_main_loop(int listening_socket, struct list_t *list) {
         printf("[SERVER] Client disconnected\n");
     }
     
+    listening_socket_global = -1;
     return 0;
 }
 
@@ -209,5 +219,18 @@ int network_server_close(int socket) {
 }
 
 void network_server_request_shutdown(void) {
+    // Signal the server to stop running
     server_running = 0;
+
+     // Close listening socket to unblock accept()
+    if (listening_socket_global >= 0) {
+        shutdown(listening_socket_global, SHUT_RDWR);
+        close(listening_socket_global);
+    }
+    
+    // Close client socket to unblock read()
+    if (client_socket_global >= 0) {
+        shutdown(client_socket_global, SHUT_RDWR);
+        close(client_socket_global);
+    }
 }
