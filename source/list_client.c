@@ -179,8 +179,8 @@ int handleArguments(int argc, char *argv[]) {
             return -1;
         }
         char *data[5];
-        for(int i = 1; i < 6; i++){
-            data[i-1] = argv[i];
+        for(int i = 0; i < 5; i++){
+            data[i] = argv[i+1];
         }
         return commandAdd(data);
     }
