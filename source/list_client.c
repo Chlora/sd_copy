@@ -151,7 +151,11 @@ int handleArguments(int argc, char *argv[]) {
             printf("ERRO : Tem de haver um argumento 'data' após o comando '%s'.\n", command);
             return -1;
         }
-        return commandAdd(param);
+        char **data[5];
+        for(int i =1; i<argc; i++){
+            data[i-1] = argv[i];
+        }
+        return commandAdd(data);
     }
     if (strcmp(command, "get_by_marca") == 0) {
         if(!param) {
