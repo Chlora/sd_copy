@@ -12,32 +12,24 @@
 
 struct rlist_t *rlist = NULL;
 
-#define MAX_ARGS 2
+#define MAX_ARGS 7
 int quitSignal = 0;
 
 
-int commandAdd(char *data) {
-
+int commandAdd(char *data[5]) {
+    
 }
 
 
 int commandGetByMarca(char *marca) {
-    enum marca_t marca_enum;
-    if (strcmp(marca, "TOYOTA") == 0) {
-        marca_enum = MARCA_TOYOTA;
-    } else if (strcmp(marca, "BMW") == 0) {
-        marca_enum = MARCA_BMW;
-    } else if (strcmp(marca, "AUDI") == 0) {
-        marca_enum = MARCA_AUDI;
-    } else if (strcmp(marca, "RENAULT") == 0) {
-        marca_enum = MARCA_RENAULT;
-    } else if (strcmp(marca, "MERCEDES") == 0) {
-        marca_enum = MARCA_MERCEDES;
-    } else {
-        printf("ERRO : Marca desconhecida '%s'.\n", marca);
-        printf("Marcas válidas: TOYOTA, BMW, AUDI, RENAULT, MERCEDES.\n");
+    int marca_int = atoi(marca);   
+    
+    if (marca_int < 0 || marca_int > 4) {
+        printf("ERRO : Marca inválida '%d'.\n", marca_int);
+        printf("Marcas válidas:\n0 - TOYOTA\n1 - BMW\n2 - RENAULT\n3 - AUDI\n4 - MERCEDES\n");
         return -1;
     }
+    enum marca_t marca_enum = (enum marca_t) marca_int;
 
     struct data_t *result = rlist_get_by_marca(rlist, marca_enum);
     if (result == NULL) {
@@ -151,8 +143,8 @@ int handleArguments(int argc, char *argv[]) {
             printf("ERRO : Tem de haver um argumento 'data' após o comando '%s'.\n", command);
             return -1;
         }
-        char **data[5];
-        for(int i =1; i<argc; i++){
+        char *data[5];
+        for(int i = 1; i < argc; i++){
             data[i-1] = argv[i];
         }
         return commandAdd(data);
