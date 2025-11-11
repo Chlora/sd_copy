@@ -36,21 +36,28 @@ struct ServerLog {
 };
 
 /*
-    Cria um ficheiro de texto vazio com o nome especificado por 'name', seguido da data (ao segundo) em que foi criado.
-    Se não for especificado um nome, o default é 'syslog'.
+    Obtém o lock para o ficheiro ./log/server.log. Se não existir diretoria/ficheiro, cria-os.
 
     Retorna o ponteiro para o ficheiro ou NULL em caso de erro.
 */
-FILE* CreateFile(char* path, char* name);
+FILE* CreateFile();
 
 
 /*
     Escreve uma entrada de log no ficheiro especificado.
+    Liberta a memória dos componentes de ServerLog, mas não liberta a memória da estrutura em si.
 
     Retorna 0 em caso de sucesso ou -1 em caso de erro.
-    Liberta a memória de ServerLog.
 */
 int WriteLog(struct ServerLog *log, FILE* file);
+
+
+/*
+    Liberta a memória ocupada pela estrutura ServerLog.
+
+    Retorna 0 em caso de sucesso ou -1 em caso de erro.
+*/
+int FreeServerLog(struct ServerLog *log);
 
 
 /*
