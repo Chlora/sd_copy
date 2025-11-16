@@ -27,12 +27,18 @@ struct rlist_t *rlist = NULL;
 int quitSignal = 0;
 
 
-int commandAdd(char *data[5]) {
-    const char *modelo = data[0];
-    int ano = atoi(data[1]);
-    float preco = atof(data[2]);
-    int marca_int = atoi(data[3]);
-    int combustivel_int = atoi(data[4]);
+int commandAdd(int argc, char **argv) {
+    if (argc != 5) {
+        printf("Uso: add <modelo> <ano> <preco> <marca> <combustivel>\n");
+        printf("Exemplo: add Corolla 2021 25000.50 0 0\n");
+        return -1;
+    }
+
+    const char *modelo = argv[0];
+    int ano = atoi(argv[1]);
+    float preco = atof(argv[2]);
+    int marca_int = atoi(argv[3]);
+    int combustivel_int = atoi(argv[4]);
 
     if (marca_int < 0 || marca_int > 4) {
         printf("ERRO : Marca inválida '%d'.\n", marca_int);
@@ -67,8 +73,12 @@ int commandAdd(char *data[5]) {
 }
 
 
-int commandGetByMarca(char *marca) {
-    int marca_int = atoi(marca);   
+int commandGetByMarca(int argc, char **argv) {
+    if (argc != 1) {
+        printf("Uso: get_by_marca <marca>\n");
+        return -1;
+    }
+    int marca_int = atoi(argv[0]);   
     
     if (marca_int < 0 || marca_int > 4) {
         printf("ERRO : Marca inválida '%d'.\n", marca_int);
@@ -79,10 +89,10 @@ int commandGetByMarca(char *marca) {
 
     struct data_t *result = rlist_get_by_marca(rlist, marca_enum);
     if (result == NULL) {
-        printf("ERRO : Falha ao obter carro da marca %s.\n", marca);
+        printf("ERRO : Falha ao obter carro da marca %s.\n", argv[0]);
         return -1;
     }
-    printf("Carro da marca %s:\n", marca);
+    printf("Carro da marca %s:\n", argv[0]);
     printf("Modelo: %s, Marca: %d, Ano: %d\n", result->modelo, result->marca, result->ano);
     data_destroy(result);
 
@@ -90,8 +100,13 @@ int commandGetByMarca(char *marca) {
 }
 
 
-int commandGetByYear(char *year) {
-    int year_int = atoi(year);
+int commandGetByYear(int argc, char **argv) {
+    if (argc != 1) {
+        printf("Uso: get_by_year <year>\n");
+        return -1;
+    }
+
+    int year_int = atoi(argv[0]);
     struct data_t **result = rlist_get_by_year(rlist, year_int);
 
     if (result == NULL) {
@@ -115,7 +130,9 @@ int commandGetByYear(char *year) {
 }
 
 
-int commandGetModelList() {
+int commandGetModelList(int argc, char **argv) {
+    (void)argc; (void)argv;
+
     char **arr = rlist_get_model_list(rlist);
     if (arr == NULL) {
         printf("ERRO : Falha ao obter a lista de modelos.\n");
@@ -132,36 +149,39 @@ int commandGetModelList() {
 }
 
 
-int commandGetListOrderedByYear() {
+int commandGetListOrderedByYear(int argc, char **argv) {
+    (void)argc; (void)argv;
+
     int result = rlist_order_by_year(rlist);
     if (result == -1) {
         printf("ERRO : Falha ao ordenar a lista por ano.\n");
         return -1;
     }
-
-    /* struct data_t **array = rlist_get_by_year(rlist, -1);
-    if (array == NULL) {
-        printf("ERRO : Falha ao converter a lista ordenada por ano.\n");
-        return -1;
-    } */
     return 0;
 }
 
 
-int commandRemove(char *model) {
-    int result = rlist_remove_by_model(rlist, model);
+int commandRemove(int argc, char **argv) {
+    if (argc != 1) {
+        printf("\tUso: remove <model>\n");
+        return -1;
+    }
+
+    int result = rlist_remove_by_model(rlist, argv[0]);
     if (result == -1) {
-        printf("ERRO : Falha ao remover o carro com modelo '%s'.\n", model);
+        printf("ERRO : Falha ao remover o carro com modelo '%s'.\n", argv[0]);
         return -1;
     }
-    if (result == 0) {
-        printf("Nenhum carro encontrado com modelo '%s' para remover.\n", model);
+    if (result == 1) {
+        printf("Nenhum carro encontrado com modelo '%s' para remover.\n", argv[0]);
     }
     return 0;
 }
 
 
-int commandSize() {
+int commandSize(int argc, char **argv) {
+    (void)argc; (void)argv; // unused
+
     int result = rlist_size(rlist);
     if (result == -1) {
         printf("ERRO : Falha ao obter o tamanho da lista.\n");
@@ -172,15 +192,19 @@ int commandSize() {
 }
 
 
-int commandQuit() {
+int commandQuit(int argc, char **argv) {
+    (void)argc; (void)argv; // unused
+    
     quitSignal = 1;
     return 0;
 }
 
-static int print_cli() {
+static int cmd_help(int argc, char **argv) {
+    (void)argc; (void)argv; // unused
+
     printf("\nComandos:\n");
-    printf("add <ano> <preco> <marca> <modelo> <combustivel>\n");
-    printf("get_by_marca <marca>\n");
+    printf("add <modelo> <ano> <preco> <marca:0-4> <combustivel:0-3>\n");
+    printf("get_by_marca <marca:0-4>\n");
     printf("get_by_year <year>\n");
     printf("get_model_list\n");
     printf("get_list_ordered_by_year\n");
@@ -193,7 +217,7 @@ static int print_cli() {
 
 
 // vê se os argumentos são válidos (0) ou dá erro (-1)
-int handleArguments(int argc, char *argv[]) {
+/* int handleArguments(int argc, char *argv[]) {
     if (argc < 1) {
         return -1;
     }
@@ -254,6 +278,44 @@ int handleArguments(int argc, char *argv[]) {
 
     printf("ERRO : Comando desconhecido '%s'.\n", command);
     return -1;
+} */
+
+typedef int (*cmd_handler_t)(int argc, char **argv);
+
+typedef struct {
+    const char *name;
+    cmd_handler_t function;
+} command_t;
+
+static const command_t commands[] = {
+    {"add", commandAdd},
+    {"get_by_marca", commandGetByMarca},
+    {"get_by_year", commandGetByYear},
+    {"get_model_list", commandGetModelList},
+    {"get_list_ordered_by_year", commandGetListOrderedByYear},
+    {"remove", commandRemove},
+    {"size", commandSize},
+    {"help", cmd_help},
+    {"quit", commandQuit},
+    {NULL, NULL} // sentinel
+};
+
+static int dispatch_command(int argc, char **argv) {
+    if (argc < 1) {
+        return -1;
+    }
+    
+    const char *cmd = argv[0];
+    
+    for (int i = 0; commands[i].name != NULL; i++) {
+        if (strcmp(cmd, commands[i].name) == 0) {
+            return commands[i].function(argc - 1, argv + 1);
+        }
+    }
+    
+    printf("ERRO: Comando desconhecido '%s'\n", cmd);
+    printf("Digite 'help' para ver os comandos disponíveis\n");
+    return -1;
 }
 
 
@@ -270,13 +332,14 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    print_cli();
+    cmd_help(0, NULL);
 
     //loop de esperar comandos
-    char input[128];
+    char input[256];
+    char *tokens[MAX_ARGS];
 
     while (quitSignal == 0) {
-        printf("> ");
+        printf("\n> ");
         fflush(stdout);
 
         if (fgets(input, sizeof(input), stdin) == NULL) {
@@ -287,21 +350,19 @@ int main(int argc, char *argv[]) {
         //remover newline
         input[strcspn(input, "\n")] = '\0';
 
-        if (strcmp(input, "") == 0) {
-            continue;
-        }
+        if (input[0] == '\0') continue;
 
         //tokenizar input
-        char *argv2[MAX_ARGS];
-        int argc2 = 0;
-
-        char *token = strtok(input, " ");
-        while (token != NULL && argc2 < MAX_ARGS) {
-            argv2[argc2++] = token;
-            token = strtok(NULL, " ");
+        int token_c = 0; 
+        char *token = strtok(input, " \t");
+        while (token != NULL && token_c < MAX_ARGS) {
+            tokens[token_c++] = token;
+            token = strtok(NULL, " \t");
         }
 
-        int result = handleArguments(argc2, argv2);
+        //executar comando
+        int result = dispatch_command(token_c, tokens);
+
         if (result == -1) {
             printf("Erro ao executar o comando. Quaisquer operações foram descartadas.\n");
         } else {

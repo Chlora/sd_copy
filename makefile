@@ -1,7 +1,11 @@
 # Compiler settings
 CC       = gcc
-CFLAGS   = -Wall -Wextra -g -Iinclude $(shell pkg-config --cflags libprotobuf-c)
-LDFLAGS  = $(shell pkg-config --libs libprotobuf-c) -lpthread
+CFLAGS   = -Wall -Wextra -g -Iinclude
+PKG_CFLAGS  := $(shell pkg-config --cflags libprotobuf-c 2>/dev/null)
+PKG_LIBS    := $(shell pkg-config --libs libprotobuf-c 2>/dev/null)
+CFLAGS   += $(PKG_CFLAGS)
+LDFLAGS  = $(PKG_LIBS) -lpthread
+
 
 # Directory layout
 SRC_DIR     = source
@@ -145,7 +149,7 @@ test: tests
 
 # Clean build artifacts
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR) $(LIB_DIR)
+	rm -rf $(OBJ_DIR) $(BIN_DIR) $(LIB_DIR) log
 
 # Clean protocol buffers
 clean-proto:

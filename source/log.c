@@ -1,15 +1,31 @@
+/**
+ * @file log.c
+ * 
+ * @brief Logging system implementation
+ * 
+ * SD-12
+ * @author Rodrigo Antunes - 57879
+ * @author Rodrigo Santos - 61825
+ * @author Teresa Grangeia - 61869
+ */
+
+#include "sdmessage.pb-c.h"
+#include "log.h"
+
+#include <errno.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <time.h>
 #include <sys/stat.h>
-#include "sdmessage.pb-c.h"
-#include "../include/log.h"
-#include <errno.h>
+#include <time.h>
 
 const char *dir = "../log";
 const char *name = "server.log";
+
+// Private mutex for log file access (thread-safe logging)
+static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 char* OpcodeToString(MessageT__Opcode opcode) {
     switch (opcode) {
@@ -94,6 +110,8 @@ FILE* CreateFile(void) {
         return NULL;
     }
 
+    // Initialize log mutex
+    pthread_mutex_init(&log_mutex, NULL);
     return file;
 }
 
@@ -102,9 +120,12 @@ int WriteLog(struct ServerLog *log, FILE* file) {
     if (log == NULL || file == NULL) {
         return -1;
     }
-    if (log->tv == NULL || log->client == NULL || log->EventType < CONNECT || log->EventType > CLOSE || log->content == NULL) {
+    if (log->tv == NULL || log->client == NULL || log->EventType < CONNECT || log->EventType > CLOSE) {
         return FreeServerLog(log);
     }
+
+    // Lock the mutex for thread-safe logging
+    pthread_mutex_lock(&log_mutex);
 
     //fprintf(file, "%ld.%06ld ", (long)log->tv->tv_sec, log->tv->tv_usec); // com milisegundo
     fprintf(file, "%ld ", (long)log->tv->tv_sec);
@@ -121,6 +142,13 @@ int WriteLog(struct ServerLog *log, FILE* file) {
 
             fprintf(file, "%s %s", CTypeToString(log->ctype), log->content);
 
+            if(log->content != NULL && strlen(log->content) > 0){
+                fprintf(file, " %s", log->content);
+            }else{
+                if (log->ctype != MESSAGE_T__C_TYPE__CT_NONE) {
+                }
+            }
+
             if (log->argument != NULL) {
                 for (int i = 0; log->argument[i] != NULL; i++) {
                     fprintf(file, " %s", log->argument[i]);
@@ -136,11 +164,17 @@ int WriteLog(struct ServerLog *log, FILE* file) {
             fprintf(file, "UNKNOWN EVENT\n");
             break;
     }
+    fflush(file);
+
+    // Unlock the mutex after logging
+    pthread_mutex_unlock(&log_mutex);
 
     
     return FreeServerLog(log);
 }
 
 int CloseFile(FILE *file) {
+    pthread_mutex_destroy(&log_mutex);
+
     return fclose(file);
 }

@@ -14,12 +14,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
+
+// Mutex for list access
+static pthread_mutex_t list_mutex;
 
 struct list_t *list_skel_init() {
+    // Initialize list mutex
+    pthread_mutex_init(&list_mutex, NULL);
     return list_create();
 }
 
 int list_skel_destroy(struct list_t *list) {
+    // Destroy list mutex
+    pthread_mutex_destroy(&list_mutex);
     return (list == NULL) ? -1 : list_destroy(list);
 }
 
@@ -57,7 +65,7 @@ static void handle_get(MessageT *msg, struct list_t *list) {
     
     switch (msg->c_type)
     {
-    case MESSAGE_T__C_TYPE__CT_MARCA:
+    case MESSAGE_T__C_TYPE__CT_MARCA:{
         struct data_t *car = list_get_by_marca(list, (enum marca_t)msg->data->marca);
         if (car == NULL) {
             set_error(msg);
@@ -75,13 +83,15 @@ static void handle_get(MessageT *msg, struct list_t *list) {
         msg->data = pb_data;
         set_success(msg, MESSAGE_T__C_TYPE__CT_DATA);
         break;
+    }
     
-    case MESSAGE_T__C_TYPE__CT_YEAR:
+    case MESSAGE_T__C_TYPE__CT_YEAR:{
         struct data_t **cars = list_get_by_year(list, (int)msg->data->ano);
         if (cars == NULL) {
             set_error(msg);
             return;
         }
+    
 
         size_t size = 0;
         Data **pb_cars = data_array_to_pb(cars, &size);
@@ -97,6 +107,7 @@ static void handle_get(MessageT *msg, struct list_t *list) {
         msg->n_cars = size;
         set_success(msg, MESSAGE_T__C_TYPE__CT_YEAR);
         break;
+    }
     default:
         set_error(msg);
         return;
@@ -194,6 +205,9 @@ int invoke(MessageT *msg, struct list_t *list) {
         return -1;
     }
 
+    // Lock the list for thread-safe access
+    pthread_mutex_lock(&list_mutex);
+
     switch (msg->opcode) {
         case MESSAGE_T__OPCODE__OP_ADD:
             handle_add(msg, list);
@@ -223,6 +237,9 @@ int invoke(MessageT *msg, struct list_t *list) {
             set_error(msg);
             break; // Erro: operação desconhecida
     }
+
+    // Unlock list after critical section
+    pthread_mutex_unlock(&list_mutex);
 
     return 0; // Sucesso
 }

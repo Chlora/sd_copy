@@ -21,54 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-int matchMarca(enum marca_t marca) {
-    if (marca == MARCA_TOYOTA) return 0;
-    if (marca == MARCA_BMW) return 1;
-    if (marca == MARCA_RENAULT) return 2;
-    if (marca == MARCA_AUDI) return 3;
-    if (marca == MARCA_MERCEDES) return 4;
-
-    return -1;
-}
-
-int matchCombustivel(enum combustivel_t combustivel) {
-    if (combustivel == COMBUSTIVEL_GASOLINA) return 0;
-    if (combustivel == COMBUSTIVEL_GASOLEO) return 1;
-    if (combustivel == COMBUSTIVEL_ELETRICO) return 2;
-    if (combustivel == COMBUSTIVEL_HIBRIDO) return 3;
-
-    return -1;
-}
-
-static Data *convert_to_proto_data(struct data_t *car){
-    if(car == NULL) return NULL;
-
-    Data *proto_car = malloc(sizeof(Data));
-    if(proto_car == NULL) return NULL;
-
-    data__init(proto_car);
-    proto_car->ano = car->ano;
-    proto_car-> preco=car->preco;
-
-    proto_car -> marca = (enum marca_t) matchMarca(car->marca);
-    proto_car-> modelo = strdup(car->modelo);
-    proto_car-> combustivel = (enum combustivel_t) matchCombustivel(car->combustivel);
-
-    return proto_car;
-}
-
-static struct data_t *convert_from_proto_data(Data *proto_car){
-    if(proto_car == NULL) return NULL;
-
-    return data_create(
-        proto_car->ano,
-        proto_car->preco,
-        (enum marca_t)proto_car->marca,
-        proto_car->modelo,
-        (enum combustivel_t)proto_car->combustivel
-    );
-}
-
 /* Remote list, deve conter as informações necessárias para comunicar
  * com o servidor. A definir pelo grupo em client_stub-private.h
  */
@@ -153,7 +105,7 @@ int rlist_add(struct rlist_t *rlist, struct data_t *car) {
     msg.opcode = MESSAGE_T__OPCODE__OP_ADD;
     msg.c_type = MESSAGE_T__C_TYPE__CT_DATA;
     
-    Data *proto_car = convert_to_proto_data(car);
+    Data *proto_car = data_to_pb(car);
     if(proto_car == NULL) return -1;
     msg.data = proto_car;
 
@@ -188,17 +140,22 @@ int rlist_remove_by_model(struct rlist_t *rlist, const char *modelo){
     msg.opcode=MESSAGE_T__OPCODE__OP_DEL;
     msg.c_type = MESSAGE_T__C_TYPE__CT_MODEL;
     
-    Data *tmp = malloc(sizeof(Data));
-    if(tmp==NULL) return -1;
-    data__init(tmp);
-    tmp->modelo = strdup(modelo);
-
-    msg.data=tmp;
+    msg.models = malloc(sizeof(char *) * 1);
+    if(msg.models == NULL) return -1;
+    
+    // Duplicate the string to avoid issues with memory ownership
+    msg.models[0] = strdup(modelo);
+    if(msg.models[0] == NULL) {
+        free(msg.models);
+        return -1;
+    }
+    msg.n_models = 1;
 
     MessageT *reply = network_send_receive(rlist, &msg);
 
-    free(tmp->modelo);
-    free(tmp);
+    // Free the allocated memory
+    free(msg.models[0]);
+    free(msg.models);
 
     if(reply == NULL) return -1;
 
@@ -224,7 +181,7 @@ struct data_t *rlist_get_by_marca(struct rlist_t *rlist, enum marca_t marca){
     Data *tmp = malloc(sizeof(Data));
     if(tmp==NULL) return NULL;
     data__init(tmp);
-    tmp->marca = marca;
+    tmp->marca = (Marca) marca;
 
     msg.data=tmp;
 
@@ -236,7 +193,7 @@ struct data_t *rlist_get_by_marca(struct rlist_t *rlist, enum marca_t marca){
 
     struct data_t *result = NULL;
     if(reply->opcode ==MESSAGE_T__OPCODE__OP_GET + 1 && reply->data) 
-        result = convert_from_proto_data(reply->data);
+        result = pb_to_data(reply->data);
 
     message_t__free_unpacked(reply, NULL);
     return result;
@@ -272,7 +229,7 @@ struct data_t **rlist_get_by_year(struct rlist_t *rlist, int ano){
         array = malloc((reply->n_cars + 1) * sizeof(struct data_t *));
         if(array){
             for(size_t i = 0; i< reply->n_cars; i++)
-                array[i] = convert_from_proto_data(reply->cars[i]);
+                array[i] = pb_to_data(reply->cars[i]);
             array[reply->n_cars] = NULL;
         }
     }

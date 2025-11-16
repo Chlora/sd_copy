@@ -25,43 +25,88 @@
 
 struct rlist_t;
 
-/* static ssize_t send_all(int sockfd, const void *buf, size_t len) {
-    size_t total = 0;
-    const uint8_t *p = buf;
-
-    while (total < len) {
-        ssize_t n = send(sockfd, p + total, len - total, 0);
-        if (n < 0) {
-            if (errno == EINTR) continue; // retry
-            return -1;
-        }
-        if (n == 0) {
-            // fechou ligacao
-            return -1;
-        }
-        total += (size_t)n;
+static int send_message(int sockfd, MessageT *msg) {
+    if (msg == NULL) {
+        return -1;
     }
-    return (ssize_t)total;
+    
+    // Get packed size
+    size_t msg_size = message_t__get_packed_size(msg);
+    if (msg_size > UINT16_MAX) {
+        fprintf(stderr, "[ERROR] Message too large\n");
+        return -1;
+    }
+    
+    // Allocate and pack
+    uint8_t *buffer = malloc(msg_size);
+    if (buffer == NULL) {
+        perror("[ERROR] Failed to allocate send buffer");
+        return -1;
+    }
+    
+    message_t__pack(msg, buffer);
+    
+    // Send size
+    uint16_t msg_size_net = htons((uint16_t)msg_size);
+    if (write_all(sockfd, &msg_size_net, sizeof(uint16_t)) != sizeof(uint16_t)) {
+        free(buffer);
+        return -1;
+    }
+    
+    // Send message
+    int result = write_all(sockfd, buffer, msg_size);
+    free(buffer);
+    
+    return (result == (int)msg_size) ? 0 : -1;
 }
 
-static ssize_t recv_all(int sockfd, void *buf, size_t len) {
-    size_t total = 0;
-    uint8_t *p = buf;
-
-    while (total < len) {
-        ssize_t n = recv(sockfd, p + total, len - total, 0);
-        if (n < 0) {
-            if (errno == EINTR) continue;
-            return -1;
-        }
-        if (n == 0) {
-            // interrupcao
-            return -1;
-        }
-        total += (size_t)n;
+static MessageT *receive_message(int sockfd) {
+    uint16_t msg_size_net;
+    
+    // Read size
+    if (read_all(sockfd, &msg_size_net, sizeof(uint16_t)) != sizeof(uint16_t)) {
+        return NULL;
     }
-    return (ssize_t)total;
-} */
+    
+    uint16_t msg_size = ntohs(msg_size_net);
+    if (msg_size == 0) {
+        fprintf(stderr, "[ERROR] Invalid message size\n");
+        return NULL;
+    }
+    
+    // Allocate buffer
+    uint8_t *buffer = malloc(msg_size);
+    if (buffer == NULL) {
+        perror("[ERROR] Failed to allocate receive buffer");
+        return NULL;
+    }
+    
+    // Read message
+    if (read_all(sockfd, buffer, msg_size) != msg_size) {
+        free(buffer);
+        return NULL;
+    }
+    
+    // Unpack
+    MessageT *msg = message_t__unpack(NULL, msg_size, buffer);
+    free(buffer);
+    
+    return msg;
+}
+
+static int handle_handshake(int sockfd) {
+    MessageT *msg = receive_message(sockfd);
+    
+    if (msg == NULL) {
+        fprintf(stderr, "[ERROR] Failed to receive handshake\n");
+        return -1;
+    }
+    
+    int opcode = msg->opcode;
+    message_t__free_unpacked(msg, NULL);
+    
+    return opcode;
+}
 
 /* Esta função deve:
  * - Obter o endereço do servidor (struct sockaddr_in) com base na
@@ -72,38 +117,6 @@ static ssize_t recv_all(int sockfd, void *buf, size_t len) {
  * - Retornar 0 (OK) ou -1 (erro).
  */
 int network_connect(struct rlist_t *rlist) {
-
-    /* char portbuf[16];
-    snprintf(portbuf, sizeof portbuf, "%d", rlist->server_port);
-
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-
-    struct addrinfo *res = NULL, *ai = NULL;
-    int rc = getaddrinfo(rlist->server_address, portbuf, &hints, &res);
-    if (rc != 0) {
-        return -1;
-    }
-
-    int fd = -1;
-    for (ai = res; ai; ai = ai->ai_next) {
-        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (fd < 0) continue;
-
-        if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) {
-            rlist->sockfd = fd;
-            freeaddrinfo(res);
-            return 0;
-        }
-        close(fd);
-        fd = -1;
-    }
-
-    freeaddrinfo(res);
-    return -1; */
-
     if (rlist == NULL || rlist->server_address == NULL) {
         fprintf(stderr, "[ERROR] Invalid rlist structure\n");
         return -1;
@@ -146,12 +159,28 @@ int network_connect(struct rlist_t *rlist) {
         rlist->sockfd = -1;
         return -1;
     }
+
+    // Perform handshake
+    switch (handle_handshake(rlist->sockfd))
+    {
+    case MESSAGE_T__OPCODE__OP_READY:
+        printf("Connected to %s:%d\n", 
+                rlist->server_address, 
+                rlist->server_port);
+        return 0;
+
+    case MESSAGE_T__OPCODE__OP_BUSY:
+        printf("Server busy. Try again later.\n");
+        close(rlist->sockfd);
+        rlist->sockfd = -1;
+        return -1;
     
-    printf("Connected to %s:%d\n", 
-           rlist->server_address, 
-           rlist->server_port);
-    
-    return 0;
+    default:
+        fprintf(stderr, "[ERROR] Unexpected server response\n");
+        close(rlist->sockfd);
+        rlist->sockfd = -1;
+        return -1;
+    }
 }
 
 /* Esta função deve:
@@ -164,78 +193,6 @@ int network_connect(struct rlist_t *rlist) {
  * - Retornar a mensagem de-serializada ou NULL em caso de erro.
  */
 MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
-    /* if (rlist == NULL || msg == NULL) {
-        fprintf(stderr, "network_send_receive: invalid arguments\n");
-        return NULL;
-    }
-
-    int sockfd = rlist->sockfd;
-    if (sockfd < 0) {
-        fprintf(stderr, "network_send_receive: invalid socket\n");
-        return NULL;
-    }
-
-    size_t msg_size = message_t__get_packed_size(msg);
-    uint8_t *msg_buf = malloc(msg_size);
-    if (msg_buf == NULL) {
-        perror("malloc");
-        return NULL;
-    }
-
-    message_t__pack(msg, msg_buf);
-
-    uint32_t net_len = htonl((uint32_t)msg_size);
-
-    if (send_all(sockfd, &net_len, sizeof(net_len)) < 0) {
-        perror("send_all length");
-        free(msg_buf);
-        return NULL;
-    }
-
-    if (send_all(sockfd, msg_buf, msg_size) < 0) {
-        perror("send_all payload");
-        free(msg_buf);
-        return NULL;
-    }
-
-    free(msg_buf); 
-
-
-    uint32_t reply_len_net;
-    if (recv_all(sockfd, &reply_len_net, sizeof(reply_len_net)) < 0) {
-        perror("recv_all length");
-        return NULL;
-    }
-
-    uint32_t reply_len = ntohl(reply_len_net);
-
-    if (reply_len == 0) {
-        fprintf(stderr, "network_send_receive: server replied with 0-length message\n");
-        return NULL;
-    }
-
-    uint8_t *reply_buf = malloc(reply_len);
-    if (reply_buf == NULL) {
-        perror("malloc reply_buf");
-        return NULL;
-    }
-
-    if (recv_all(sockfd, reply_buf, reply_len) < 0) {
-        perror("recv_all payload");
-        free(reply_buf);
-        return NULL;
-    }
-
-    MessageT *reply_msg = message_t__unpack(NULL, reply_len, reply_buf);
-    free(reply_buf);
-
-    if (reply_msg == NULL) {
-        fprintf(stderr, "message_t__unpack: failed to decode server reply\n");
-        return NULL;
-    }
-
-    return reply_msg; */
-
     if (rlist == NULL || msg == NULL) {
         fprintf(stderr, "[ERROR] Invalid arguments to network_send_receive\n");
         return NULL;
@@ -246,9 +203,7 @@ MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
         return NULL;
     }
     
-    
-    // Determine message size
-    
+    /* // Determine message size
     size_t msg_size = message_t__get_packed_size(msg);
     
     if (msg_size > UINT16_MAX) {
@@ -259,7 +214,6 @@ MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
     
     
     // Serialize message to buffer
-    
     uint8_t *buffer = malloc(msg_size);
     if (buffer == NULL) {
         perror("[ERROR] Failed to allocate serialization buffer");
@@ -275,7 +229,6 @@ MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
     
     
     // Send message size (2 bytes, network byte order)
-    
     uint16_t msg_size_net = htons((uint16_t)msg_size);
     if (write_all(rlist->sockfd, &msg_size_net, sizeof(uint16_t)) != sizeof(uint16_t)) {
         perror("[ERROR] Failed to send message size");
@@ -285,7 +238,6 @@ MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
     
     
     // Send serialized message
-    
     if (write_all(rlist->sockfd, buffer, msg_size) != (ssize_t)msg_size) {
         perror("[ERROR] Failed to send message");
         free(buffer);
@@ -297,7 +249,6 @@ MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
     
     
     // Receive response size (2 bytes, network byte order)
-    
     uint16_t response_size_net;
     if (read_all(rlist->sockfd, &response_size_net, sizeof(uint16_t)) != sizeof(uint16_t)) {
         perror("[ERROR] Failed to receive response size");
@@ -334,6 +285,20 @@ MessageT *network_send_receive(struct rlist_t *rlist, MessageT *msg) {
     if (response == NULL) {
         fprintf(stderr, "[ERROR] Failed to deserialize response\n");
         return NULL;
+    }
+    
+    return response; */
+
+    // Send request
+    if (send_message(rlist->sockfd, msg) != 0) {
+        perror("[ERROR] Failed to send message");
+        return NULL;
+    }
+    
+    // Receive response
+    MessageT *response = receive_message(rlist->sockfd);
+    if (response == NULL) {
+        fprintf(stderr, "[ERROR] Failed to receive response\n");
     }
     
     return response;

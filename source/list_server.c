@@ -23,10 +23,6 @@ static void signal_handler(int signum) {
     printf("[SERVER] Signal %d received, shutting down...\n", signum);
     
     network_server_request_shutdown();
-    
-    if (socket >= 0) {
-        close(socket);
-    }
 }
 
 static void cleanup(void) {
@@ -52,7 +48,7 @@ int main(int argc, char const *argv[]) {
     }
 
     // Parse port number
-    short port = atoi(argv[1]);
+    int port = atoi(argv[1]);
     if (port < 1024 || port > 65535) {
         fprintf(stderr, "[ERROR] Invalid port: %d (must be 1024-65535)\n", port);
         return 1;
