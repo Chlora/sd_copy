@@ -15,4 +15,9 @@ struct rlist_t
     int sockfd;
 };
 
+/**
+ * Obtém todos os carros da lista remota.
+ */
+struct data_t **rlist_get_all(struct rlist_t *rlist);
+
 #endif

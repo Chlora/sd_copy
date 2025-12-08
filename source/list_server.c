@@ -11,13 +11,24 @@
 
 #include "list_skel.h"
 #include "network_server.h"
+#include "zk_server.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <string.h>
 
-static int socket = -1;
+static int s_socket = -1;
 static struct list_t *list = NULL;
+
+static const char* build_local_address(const char* port) {
+    size_t len = 11 + strlen(port) + 1;
+    char *address = malloc(len);
+    if (!address) return NULL;
+    
+    snprintf(address, len, "127.0.0.1:%s", port);
+    return address;
+}
 
 static void signal_handler(int signum) {
     printf("[SERVER] Signal %d received, shutting down...\n", signum);
@@ -28,9 +39,12 @@ static void signal_handler(int signum) {
 static void cleanup(void) {
     printf("[SERVER] Cleaning up resources...\n");
 
-    if (socket >= 0) {
-        network_server_close(socket);
-        socket = -1;
+    // Disconnect from ZooKeeper
+    zk_disconnect();
+
+    if (s_socket >= 0) {
+        network_server_close(s_socket);
+        s_socket = -1;
     }
     
     if (list != NULL) {
@@ -42,8 +56,8 @@ static void cleanup(void) {
 }
 
 int main(int argc, char const *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s <port> <zk_host:zk_port>\n", argv[0]);
         return 1;
     }
 
@@ -54,7 +68,8 @@ int main(int argc, char const *argv[]) {
         return 1;
     }
 
-    printf("[SERVER] Port= %d\n", port);
+    const char *zk_host = argv[2];
+    const char *server_addr = build_local_address(argv[1]);
 
     // Setup signal handlers
     signal(SIGINT, signal_handler);   // Ctrl+C
@@ -72,18 +87,42 @@ int main(int argc, char const *argv[]) {
     }
     printf("[SERVER] List initialized successfully\n");
 
+    // Initialize zookeeper
+    if (zk_connect(zk_host, server_addr) != 0) {
+        fprintf(stderr, "[ERROR] Failed to connect to ZooKeeper\n");
+        return 1;
+    }
+
+    if (zk_register() != 0) {
+        fprintf(stderr, "[ERROR] Failed to register in ZooKeeper\n");
+        return 1;
+    }
+
+    if (zk_update_chain() != 0) {
+        fprintf(stderr, "[ERROR] Failed to update chain\n");
+        return 1;
+    }
+    
+    // Sync from predecessor
+    if (zk_sync(list) != 0) {
+        fprintf(stderr, "[ERROR] Failed to sync from predecessor\n");
+        return 1;
+    }
+    
+    zk_print_status();
+
     // Initialize server
     printf("[SERVER] Initializing network on port %d...\n", port);
-    socket = network_server_init(port);
-    if (socket < 0) {
+    s_socket = network_server_init(port);
+    if (s_socket < 0) {
         fprintf(stderr, "[ERROR] Failed to initialize server\n");
         return 1;
     }
-    printf("[SERVER] Server ready (socket fd=%d)\n\n", socket);
+    printf("[SERVER] Server ready (s_socket fd=%d)\n\n", s_socket);
 
     // Main loop
     printf("[SERVER] Waiting for connections...\n");
-    if (network_main_loop(socket, list) < 0) {
+    if (network_main_loop(s_socket, list) < 0) {
         fprintf(stderr, "[ERROR] Main loop failed\n");
         return 1;
     }

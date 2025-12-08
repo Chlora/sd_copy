@@ -4,7 +4,7 @@ CFLAGS   = -Wall -Wextra -g -Iinclude
 PKG_CFLAGS  := $(shell pkg-config --cflags libprotobuf-c 2>/dev/null)
 PKG_LIBS    := $(shell pkg-config --libs libprotobuf-c 2>/dev/null)
 CFLAGS   += $(PKG_CFLAGS)
-LDFLAGS  = $(PKG_LIBS) -lpthread
+LDFLAGS  = $(PKG_LIBS) -lzookeeper_mt -lpthread
 
 
 # Directory layout
