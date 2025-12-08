@@ -11,8 +11,10 @@
 #define THREADED
 
 #include "zk_server.h"
+#include "zk_util.h"
 #include "client_stub.h"
 #include "client_stub-private.h"
+#include "network_client.h"
 #include "list.h"
 #include "data.h"
 #include <stdio.h>
@@ -23,10 +25,7 @@
 #include <time.h>
 #include <pthread.h>
 
-#define CHAIN_PATH "/chain"
 #define NODE_PREFIX "/chain/node"
-#define TIMEOUT_MS 10000
-#define CONNECT_TIMEOUT_SEC 5
 
 /* Zookeeper State*/
 typedef struct {
@@ -62,18 +61,8 @@ static void connection_watcher(zhandle_t *zh, int type, int state,
                                const char *path, void *context);
 static void chain_watcher(zhandle_t *zh, int type, int state,
                          const char *path, void *context);
-static int pathcmp(const void *a, const void *b);
-static int wait_for_connection(int timeout_sec);
-static void cleanup_zk_state(void);
 static int zk_update_chain_internal(void);
-static void *zk_update_thread(void *arg);
 
-static char **get_sorted_chain_nodes(int *count);
-static void free_node_paths(char **node_paths, int count);
-static int find_node_index(char **node_paths, int count);
-static int get_node_address(const char *node_path, char *addr_buffer, size_t buffer_size);
-static int get_node_address_at_index(char **node_paths, int index, 
-                                      char *addr_buffer, size_t buffer_size);
 
 /* Utilities */
 
@@ -134,87 +123,6 @@ static int wait_for_connection(int timeout_sec) {
     
     pthread_mutex_unlock(&zk_state.zk_mutex);
     return 0;
-}
-
-static int pathcmp(const void *a, const void *b) {
-    return strcmp(*(const char **)a, *(const char **)b);
-}
-
-static char **get_sorted_chain_nodes(int *count) {
-    if (!count) return NULL;
-    
-    struct String_vector children;
-    int rc = zoo_get_children(zk_state.handle, CHAIN_PATH, 0, &children);
-    
-    if (rc != ZOK || children.count == 0) {
-        if (rc == ZOK) deallocate_String_vector(&children);
-        *count = 0;
-        return NULL;
-    }
-    
-    char **node_paths = malloc(children.count * sizeof(char *));
-    if (!node_paths) {
-        deallocate_String_vector(&children);
-        return NULL;
-    }
-    
-    for (int i = 0; i < children.count; i++) {
-        size_t len = strlen(CHAIN_PATH) + strlen(children.data[i]) + 2;
-        node_paths[i] = malloc(len);
-        if (!node_paths[i]) {
-            for (int j = 0; j < i; j++) free(node_paths[j]);
-            free(node_paths);
-            deallocate_String_vector(&children);
-            return NULL;
-        }
-        snprintf(node_paths[i], len, "%s/%s", CHAIN_PATH, children.data[i]);
-    }
-    
-    deallocate_String_vector(&children);
-    qsort(node_paths, children.count, sizeof(char *), pathcmp);
-    
-    *count = children.count;
-    return node_paths;
-}
-
-static void free_node_paths(char **node_paths, int count) {
-    if (!node_paths) return;
-    for (int i = 0; i < count; i++) {
-        free(node_paths[i]);
-    }
-    free(node_paths);
-}
-
-static int find_node_index(char **node_paths, int count) {
-    if (!node_paths || !zk_state.node_path) return -1;
-    
-    for (int i = 0; i < count; i++) {
-        if (strcmp(node_paths[i], zk_state.node_path) == 0) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-static int get_node_address(const char *node_path, char *addr_buffer, size_t buffer_size) {
-    if (!node_path || !addr_buffer || buffer_size == 0) return -1;
-    
-    int addr_len = buffer_size - 1;
-    int rc = zoo_get(zk_state.handle, node_path, 0, addr_buffer, &addr_len, NULL);
-    
-    if (rc != ZOK) {
-        fprintf(stderr, "[ZK] Failed to get node data: %s\n", zerror(rc));
-        return -1;
-    }
-    
-    addr_buffer[addr_len] = '\0';
-    return 0;
-}
-
-static int get_node_address_at_index(char **node_paths, int node_index, 
-                                      char *addr_buffer, size_t buffer_size) {
-    if (!node_paths || node_index < 0) return -1;
-    return get_node_address(node_paths[node_index], addr_buffer, buffer_size);
 }
 
 /* Update Thread */
@@ -372,17 +280,17 @@ static int zk_update_chain_internal(void) {
     
     // Get sorted nodes
     int count;
-    char **node_paths = get_sorted_chain_nodes(&count);
+    char **node_paths = zk_get_sorted_chain_nodes(zk_state.handle, &count);
     if (!node_paths || count == 0) {
         fprintf(stderr, "[ZK] No nodes in chain!\n");
         return -1;
     }
     
     // Find our position
-    int node_index = find_node_index(node_paths, count);
+    int node_index = zk_find_node_index(node_paths, count, zk_state.node_path);
     if (node_index == -1) {
         fprintf(stderr, "[ZK] Could not find ourselves in chain!\n");
-        free_node_paths(node_paths, count);
+        zk_free_node_paths(node_paths, count);
         return -1;
     }
     
@@ -403,16 +311,36 @@ static int zk_update_chain_internal(void) {
     // Get successor if we have one
     char *new_successor_addr = NULL;
     struct rlist_t *new_successor = NULL;
-    
+
     if (node_index < count - 1) {
         char addr_buffer[256];
-        if (get_node_address_at_index(node_paths, node_index + 1, 
+        if (zk_get_node_address_at_index(zk_state.handle, node_paths, node_index + 1,
                                        addr_buffer, sizeof(addr_buffer)) == 0) {
             new_successor_addr = strdup(addr_buffer);
             printf("[ZK] Connecting to successor: %s\n", addr_buffer);
-            new_successor = rlist_connect(addr_buffer);
+
+            // Retry connection with exponential backoff
+            int max_retries = 5;
+            int delay_ms = 100;
+
+            for (int retry = 0; retry < max_retries; retry++) {
+                new_successor = rlist_connect(addr_buffer);
+                if (new_successor) {
+                    printf("[ZK] Successfully connected to successor\n");
+                    break;
+                }
+
+                if (retry < max_retries - 1) {
+                    printf("[ZK] Connection attempt %d failed, retrying in %dms...\n",
+                           retry + 1, delay_ms);
+                    usleep(delay_ms * 1000);
+                    delay_ms *= 2;  // Exponential backoff
+                }
+            }
+
             if (!new_successor) {
-                fprintf(stderr, "[ZK] Failed to connect to successor\n");
+                fprintf(stderr, "[ZK] Failed to connect to successor after %d attempts\n",
+                        max_retries);
                 free(new_successor_addr);
                 new_successor_addr = NULL;
             }
@@ -424,14 +352,14 @@ static int zk_update_chain_internal(void) {
     
     if (node_index > 0) {
         char addr_buffer[256];
-        if (get_node_address_at_index(node_paths, node_index - 1, 
+        if (zk_get_node_address_at_index(zk_state.handle, node_paths, node_index - 1, 
                                        addr_buffer, sizeof(addr_buffer)) == 0) {
             new_predecessor_addr = strdup(addr_buffer);
             printf("[ZK] Predecessor: %s\n", addr_buffer);
         }
     }
     
-    free_node_paths(node_paths, count);
+    zk_free_node_paths(node_paths, count);
     
     // Update state atomically
     pthread_mutex_lock(&zk_state.zk_mutex);
@@ -466,7 +394,7 @@ int zk_update_chain(void) {
     return zk_update_chain_internal();
 }
 
-int zk_forward_to_successor(MessageT *msg) {
+int zk_forward(MessageT *msg) {
     if (!msg) return -1;
     
     for (int attempt = 0; attempt < 2; attempt++) {
@@ -628,6 +556,9 @@ uint64_t zk_get_chain_epoch(void) {
 
 static void connection_watcher(zhandle_t *zh, int type, int state,
                                const char *path, void *context) {
+    (void)zh;
+    (void)path;
+                                
     zk_state_t *server = (zk_state_t *)context;
     
     if (!server) return;
@@ -657,6 +588,11 @@ static void connection_watcher(zhandle_t *zh, int type, int state,
 
 static void chain_watcher(zhandle_t *zh, int type, int state,
                          const char *path, void *context) {
+
+    (void)zh;
+    (void)state;
+    (void)path;
+    
     zk_state_t *server = (zk_state_t *)context;
     
     if (!server) return;

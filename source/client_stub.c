@@ -327,14 +327,14 @@ int rlist_free_model_list(char **models){
 }
 
 struct data_t **rlist_get_all(struct rlist_t *rlist){
-    if(rlist==NULL) return -1;
+    if(rlist==NULL) return NULL;
 
     MessageT msg = MESSAGE_T__INIT;
     msg.opcode=MESSAGE_T__OPCODE__OP_GETLISTBYTEAR;
     msg.c_type = MESSAGE_T__C_TYPE__CT_NONE;
 
     MessageT *reply = network_send_receive(rlist, &msg);
-    if(reply==NULL) return -1;
+    if(reply==NULL) return NULL;
 
     struct data_t **array = (reply->opcode == MESSAGE_T__OPCODE__OP_GETLISTBYTEAR +1 ) ? pb_to_data_array(reply->cars, reply->n_cars): NULL;
 

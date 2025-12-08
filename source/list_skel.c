@@ -11,6 +11,7 @@
 
 #include "list_skel.h"
 #include "message-private.h"
+#include "zk_server.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -200,6 +201,10 @@ static void handle_size(MessageT *msg, struct list_t *list) {
     }
 }
 
+static int is_wrt_op(MessageT *msg) {
+    return (msg->opcode == MESSAGE_T__OPCODE__OP_ADD || msg->opcode == MESSAGE_T__OPCODE__OP_DEL);
+}
+
 int invoke(MessageT *msg, struct list_t *list) {
     if (msg == NULL || list == NULL) {
         return -1;
@@ -207,6 +212,9 @@ int invoke(MessageT *msg, struct list_t *list) {
 
     // Lock the list for thread-safe access
     pthread_mutex_lock(&list_mutex);
+
+    // Create a shallow copy of the message
+    MessageT msg_copy = *msg;
 
     switch (msg->opcode) {
         case MESSAGE_T__OPCODE__OP_ADD:
@@ -236,6 +244,14 @@ int invoke(MessageT *msg, struct list_t *list) {
         default:
             set_error(msg);
             break; // Erro: operação desconhecida
+    }
+
+    if (is_wrt_op(&msg_copy) && msg->opcode != MESSAGE_T__OPCODE__OP_ERROR) {
+        // Forward changes to ZooKeeper chain
+         if (zk_forward(&msg_copy) != 0) {
+            fprintf(stderr, "[INVOKE] Forward to chain failed\n");
+            set_error(msg);
+        }
     }
 
     // Unlock list after critical section
