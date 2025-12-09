@@ -9,8 +9,6 @@
  * @author Teresa Grangeia - 61869
  */
 
-#define THREADED
-
 #include "client_stub-private.h"
 #include "client_stub.h"
 #include <zookeeper/zookeeper.h>
@@ -175,25 +173,6 @@ int disconnectFromZookeeper() {
     sem_wait(&mutex);
 
     int result1 = zookeeper_close(zkHandler);
-<<<<<<< Updated upstream
-    int result2 = rlist_disconnect(rlistHead);
-    int result3 = rlist_disconnect(rlistTail);
-    int result4 = sem_destroy(&mutex);
-
-    if (result1 != ZOK) {
-        printf("Erro ao tentar desligar do Zookeeper.\n");
-    }
-    if (result2 == -1) {
-        printf("Erro ao tentar desligar do servidor head.\n");
-    }
-    if (result3 == -1) {
-        printf("Erro ao tentar desligar do servidor tail.\n");
-    }
-    if (result4 == -1) {
-        printf("Erro ao tentar destruir o semaforo.\n");
-    }
-=======
->>>>>>> Stashed changes
 
     sem_post(&mutex);
     int result4 = sem_destroy(&mutex);
