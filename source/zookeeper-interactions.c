@@ -55,7 +55,7 @@ void connectToHead(struct String_vector children) {
 
     sem_post(&mutex);
 
-    free(childip);    
+    free(childip);
 }
 
 void connectToTail(struct String_vector children) {
@@ -90,25 +90,92 @@ void connectToTail(struct String_vector children) {
 
 
 void watcher(zhandle_t *zkH, int type, int state, const char *path, void *watcherCtx) {
+    (void)watcherCtx;
+    (void)path;
+
+    if (!zkHandler) {
+        return;
+    }
 
     if (type == ZOO_CHILD_EVENT) {
 
+        struct String_vector children;
+        int rc = zoo_wget_children(zkHandler, "/chain", watcher, NULL, &children);
+        if (rc != ZOK) {
+            printf("Erro ao fazer zoo_wget_children.\n");
+            return;
+        }
+
+        if (children.count == 0) {
+            if (rlistHead) {
+                rlist_disconnect(rlistHead);
+                rlistHead = NULL;
+            }
+            if (rlistTail) {
+                rlist_disconnect(rlistTail);
+                rlistTail = NULL;
+            }
+            deallocate_String_vector(&children);
+            printf("Nenhum servidor disponível em /chain.\n");
+            return;
+        }
+
+        sem_wait(&mutex);
+
+        //desconecta primeiro as ligacoes antigas (se existirem)
+        // connectToHead/connectToTail vao criar novas ligacoes
+        if (rlistHead) {
+            rlist_disconnect(rlistHead);
+            rlistHead = NULL;
+        }
+        if (rlistTail) {
+            rlist_disconnect(rlistTail);
+            rlistTail = NULL;
+        }
+
+        sem_post(&mutex);
+
+        // tenta ligar ao novo head e tail 
+        connectToHead(children);
+        connectToTail(children);
+
+        deallocate_String_vector(&children); 
+        printf("Servidores head/tail atualizados pelo watcher.\n");
+        return;
     }
 
     if (type == ZOO_SESSION_EVENT) {
         if (state == ZOO_CONNECTED_STATE) {
-            // nada?
+            // sessao estabelecida: nao faz nada
+            printf("Sessão ZK establecida.\n");
+            return;
         } else if (state == ZOO_EXPIRED_SESSION_STATE) {
-            zookeeper_close(zkH);
+            //sessao expirada: fecha ligacao local ao ZooKeeper e limpa conexoes 
+            printf("Sessão ZK expirou, a fechar a ligação...\n");
+            if (zkHandler) {
+                zookeeper_close(zkHandler);
+                zkHandler = NULL;
+            }
+            if (rlistHead) {
+                rlist_disconnect(rlistHead);
+                rlistHead = NULL;
+            }
+            if (rlistTail) {
+                rlist_disconnect(rlistTail);
+                rlistTail = NULL;
+            }
+            return;
         }
     }
 }
+
 
 
 int disconnectFromZookeeper() {
     sem_wait(&mutex);
 
     int result1 = zookeeper_close(zkHandler);
+<<<<<<< Updated upstream
     int result2 = rlist_disconnect(rlistHead);
     int result3 = rlist_disconnect(rlistTail);
     int result4 = sem_destroy(&mutex);
@@ -125,10 +192,17 @@ int disconnectFromZookeeper() {
     if (result4 == -1) {
         printf("Erro ao tentar destruir o semaforo.\n");
     }
+=======
+>>>>>>> Stashed changes
 
     sem_post(&mutex);
+    int result4 = sem_destroy(&mutex);
 
-    return (result1 + result2 + result3 == 0) ? 0 : -1;
+    if (result4 == -1) {
+        printf("Erro ao tentar destruir o semaforo.\n");
+    }
+
+    return (result1 == ZOK) ? 0 : -1;
 }
 
 
@@ -143,6 +217,12 @@ int connectToZookeper(char* ip) {
     struct String_vector children;
     int rc = zoo_get_children(zkHandler, "/chain", 1, &children);
 
+    if (children.count <= 0 || children.data == NULL) {
+        printf("Não existem servidores.\n");
+        deallocate_String_vector(&children);
+        return -1; 
+    }
+
     // zoo ok
     if (rc != ZOK) {
         printf("Erro ao obter dados do Zookeeper sobre os servidores.\n");
@@ -150,7 +230,6 @@ int connectToZookeper(char* ip) {
         if (result == -1) {
             printf("Erro ao dealocar o string vector.\n");
         }
-        disconnectFromZookeeper();
         return -1;
     }
 
@@ -166,6 +245,7 @@ int connectToZookeper(char* ip) {
         printf("Erro ao dealocar o string vector.\n");
     }
     printf("Conexão establecida com o Zookeeper.\n");
+
     return 0;
 }
 
