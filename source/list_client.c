@@ -1,11 +1,3 @@
-/*TODO LIST
-
-5) Handle ao watch
-    - Quando /chain muda, voltar a obter /chain
-    - Ver se é necessário restablecer ligações
-*/
-
-
 /**
  * @file list_client.c
  * 
