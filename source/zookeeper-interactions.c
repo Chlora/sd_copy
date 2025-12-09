@@ -9,6 +9,8 @@
  * @author Teresa Grangeia - 61869
  */
 
+#define THREADED
+
 #include "client_stub-private.h"
 #include "client_stub.h"
 #include <zookeeper/zookeeper.h>

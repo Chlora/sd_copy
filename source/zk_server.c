@@ -27,7 +27,7 @@
 
 #define NODE_PREFIX "/chain/node"
 
-/* Zookeeper State*/
+/* Zookeeper State */
 typedef struct {
     // ZooKeeper connection
     zhandle_t *handle;
@@ -39,34 +39,31 @@ typedef struct {
     char *successor_address;
     char *predecessor_address;
     zk_role_t role;
-    int node_index;           // Position in chain (0-based)
-    int chain_size;         // Total servers in chain
-    uint64_t chain_epoch;   // Increments on each update
+    int node_index;
+    int chain_size;
     
     // Synchronization
     pthread_mutex_t zk_mutex;
     pthread_cond_t connected_cond;
+    int mutex_initialized;
+    int cond_initialized;
     volatile int connected;
     volatile int update_pending;
     volatile int active;
-    int mutex_initialized;
-    int cond_initialized;
 } zk_state_t;
 
 static zk_state_t zk_state = {0};
 
 /* Forward Declarations */
-
 static void connection_watcher(zhandle_t *zh, int type, int state, 
                                const char *path, void *context);
 static void chain_watcher(zhandle_t *zh, int type, int state,
                          const char *path, void *context);
-static int zk_update_chain_internal(void);
+static int zk_update_chain_internal();
 
 
 /* Utilities */
-
-static void cleanup_zk_state(void) {
+static void cleanup_zk_state() {
     if (zk_state.handle) {
         zookeeper_close(zk_state.handle);
         zk_state.handle = NULL;
@@ -126,7 +123,6 @@ static int wait_for_connection(int timeout_sec) {
 }
 
 /* Update Thread */
-
 static void *zk_update_thread(void *arg) {
     (void)arg;
     
@@ -152,7 +148,7 @@ static void *zk_update_thread(void *arg) {
     return NULL;
 }
 
-/* Public API */
+/* Zookeeper Operations */
 
 int zk_connect(const char *zk_host, const char *node_addr) {
     if (!zk_host || !node_addr) {
@@ -166,7 +162,6 @@ int zk_connect(const char *zk_host, const char *node_addr) {
     zk_state.active = 1;
     zk_state.role = ZK_ROLE_SINGLE;
     zk_state.connected = 0;
-    zk_state.chain_epoch = 0;
     zk_state.node_index = -1;
     zk_state.chain_size = 0;
     
@@ -218,7 +213,7 @@ int zk_connect(const char *zk_host, const char *node_addr) {
     return 0;
 }
 
-int zk_register(void) {
+int zk_register() {
     if (!zk_state.handle) {
         fprintf(stderr, "[ZK] Invalid state\n");
         return -1;
@@ -260,7 +255,7 @@ int zk_register(void) {
     return 0;
 }
 
-static int zk_update_chain_internal(void) {
+static int zk_update_chain_internal() {
     if (!zk_state.handle || !zk_state.node_path) {
         fprintf(stderr, "[ZK] Invalid state\n");
         return -1;
@@ -374,7 +369,6 @@ static int zk_update_chain_internal(void) {
     zk_state.role = new_role;
     zk_state.node_index = node_index;
     zk_state.chain_size = count;
-    zk_state.chain_epoch++;
     
     pthread_mutex_unlock(&zk_state.zk_mutex);
     
@@ -386,11 +380,11 @@ static int zk_update_chain_internal(void) {
     if (old_successor_addr) free(old_successor_addr);
     if (old_predecessor_addr) free(old_predecessor_addr);
     
-    printf("[ZK] Role: %s (epoch %lu)\n", zk_role_string(new_role), zk_state.chain_epoch);
+    printf("[ZK] Role: %s\n", zk_role_string(new_role));
     return 0;
 }
 
-int zk_update_chain(void) {
+int zk_update_chain() {
     return zk_update_chain_internal();
 }
 
@@ -481,7 +475,7 @@ int zk_sync(struct list_t *list) {
     return 0;
 }
 
-void zk_disconnect(void) {
+void zk_disconnect() {
     printf("[ZK] Cleaning up...\n");
 
     // Signal update thread to stop
@@ -506,17 +500,16 @@ void zk_disconnect(void) {
     printf("[ZK] Cleanup complete\n");
 }
 
-void zk_print_status(void) {
+void zk_print_status() {
     pthread_mutex_lock(&zk_state.zk_mutex);
     
-    printf("\n=== ZooKeeper Status ===\n");
-    printf("Node: %s\n", zk_state.node_address ? zk_state.node_address : "N/A");
-    printf("Position: %d/%d\n", zk_state.node_index + 1, zk_state.chain_size);
-    printf("Role: %s\n", zk_role_string(zk_state.role));
-    printf("Epoch: %lu\n", zk_state.chain_epoch);
-    printf("Predecessor: %s\n", zk_state.predecessor_address ? zk_state.predecessor_address : "NONE");
-    printf("Successor: %s\n", zk_state.successor_address ? zk_state.successor_address : "NONE");
-    printf("========================\n\n");
+    printf("\n- ZooKeeper Status -\n");
+    printf("\tNode: %s\n", zk_state.node_address ? zk_state.node_address : "N/A");
+    printf("\tPosition: %d/%d\n", zk_state.node_index + 1, zk_state.chain_size);
+    printf("\tRole: %s\n", zk_role_string(zk_state.role));
+    printf("\tPredecessor: %s\n", zk_state.predecessor_address ? zk_state.predecessor_address : "NONE");
+    printf("\tSuccessor: %s\n", zk_state.successor_address ? zk_state.successor_address : "NONE");
+    printf("\n\n");
     
     pthread_mutex_unlock(&zk_state.zk_mutex);
 }
@@ -531,25 +524,18 @@ const char *zk_role_string(zk_role_t role) {
     }
 }
 
-int zk_get_chain_position(void) {
+int zk_get_chain_position() {
     pthread_mutex_lock(&zk_state.zk_mutex);
     int pos = zk_state.node_index + 1;
     pthread_mutex_unlock(&zk_state.zk_mutex);
     return pos;
 }
 
-int zk_get_chain_size(void) {
+int zk_get_chain_size() {
     pthread_mutex_lock(&zk_state.zk_mutex);
     int size = zk_state.chain_size;
     pthread_mutex_unlock(&zk_state.zk_mutex);
     return size;
-}
-
-uint64_t zk_get_chain_epoch(void) {
-    pthread_mutex_lock(&zk_state.zk_mutex);
-    uint64_t epoch = zk_state.chain_epoch;
-    pthread_mutex_unlock(&zk_state.zk_mutex);
-    return epoch;
 }
 
 /* Watchers */
