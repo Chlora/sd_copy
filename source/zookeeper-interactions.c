@@ -16,6 +16,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <semaphore.h>
+
+sem_t mutex;
 
 struct rlist_t;
 
@@ -24,6 +27,8 @@ struct rlist_t *rlistHead = NULL;
 struct rlist_t *rlistTail = NULL;
 
 void connectToHead(struct String_vector children) {
+    sem_wait(&mutex);
+
     const char *child = children.data[0];
 
     char path[1024];
@@ -33,6 +38,7 @@ void connectToHead(struct String_vector children) {
     char *childip = malloc(buflen + 1);
     if (!childip) {
         printf("Erro ao alocar memória para o buffer.\n");
+        sem_post(&mutex);
         return;
     }
 
@@ -45,10 +51,14 @@ void connectToHead(struct String_vector children) {
         printf("Erro ao obter dados do Zookeeper sobre o servidor head.\n");
     }
 
+    sem_post(&mutex);
+
     free(childip);    
 }
 
 void connectToTail(struct String_vector children) {
+    sem_wait(&mutex);
+
     const char *child = children.data[children.count - 1];
 
     char path[1024];
@@ -58,6 +68,7 @@ void connectToTail(struct String_vector children) {
     char *childip = malloc(buflen + 1);
     if (!childip) {
         printf("Erro ao alocar memória para o buffer.\n");
+        sem_post(&mutex);
         return;
     }
 
@@ -69,6 +80,8 @@ void connectToTail(struct String_vector children) {
     } else {
         printf("Erro ao obter dados do Zookeeper sobre o servidor tail.\n");
     }
+
+    sem_post(&mutex);
 
     free(childip); 
 }
@@ -91,9 +104,12 @@ void watcher(zhandle_t *zkH, int type, int state, const char *path, void *watche
 
 
 int disconnectFromZookeeper() {
+    sem_wait(&mutex);
+
     int result1 = zookeeper_close(zkHandler);
     int result2 = rlist_disconnect(rlistHead);
     int result3 = rlist_disconnect(rlistTail);
+    int result4 = sem_destroy(&mutex);
 
     if (result1 != ZOK) {
         printf("Erro ao tentar desligar do Zookeeper.\n");
@@ -104,12 +120,18 @@ int disconnectFromZookeeper() {
     if (result3 == -1) {
         printf("Erro ao tentar desligar do servidor tail.\n");
     }
+    if (result4 == -1) {
+        pritnf("Erro ao tentar destruir o semaforo.\n");
+    }
+
+    sem_post(&mutex);
 
     return (result1 + result2 + result3 == 0) ? 0 : -1;
 }
 
 
 int connectToZookeper(char* ip) {
+    sem_init(&mutex, 0, 1);
     zkHandler = zookeeper_init(ip, watcher, 10000, 0, 0, 0);
 
     if (!zkHandler) {
@@ -145,11 +167,17 @@ int connectToZookeper(char* ip) {
     return 0;
 }
 
+
 int areConnectionsEstablished() {
-    if (rlistHead != NULL && rlistTail != NULL) {
-        return 1;
+    int s;
+    int result = sem_getvalue(&mutex, &s);
+
+    if (result == -1) {
+        printf("Erro ao tentar aceder ao valor do semaforo.\n");
+        return -1;
     }
-    return 0;
+
+    return (s == 1 && rlistHead != NULL && rlistTail != NULL) ? 1 : 0;
 }
 
 
