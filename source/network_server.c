@@ -212,7 +212,9 @@ void *serve_client(void *params) {
                             l->argument = NULL;
                         }
 
-                        WriteLog(l, log_fp);
+                        if (WriteLog(l, log_fp) != 0) {
+                            FreeServerLog(l);
+                        }
                         free(l);
                     }
                 }
@@ -263,7 +265,9 @@ void *serve_client(void *params) {
                 l->ctype = MESSAGE_T__C_TYPE__CT_NONE;
                 l->content = NULL;
                 l->argument = NULL;
-                WriteLog(l, log_fp);
+                if (WriteLog(l, log_fp) != 0) {
+                    FreeServerLog(l);
+                }
                 free(l);
             }
         }
@@ -415,12 +419,14 @@ int network_main_loop(int listening_socket, struct list_t *list) {
                         free(l);
                     } else{
                         l->EventType = CONNECT;
-                        l->opcode = MESSAGE_T__OPCODE__OP_BAD; 
+                        l->opcode = MESSAGE_T__OPCODE__OP_BAD;
                         l->ctype = MESSAGE_T__C_TYPE__CT_NONE;
                         l->content = NULL;
                         l->argument = NULL;
 
-                        WriteLog(l, log_fp);
+                        if (WriteLog(l, log_fp) != 0) {
+                            FreeServerLog(l);
+                        }
                         free(l);
                     }
                 }

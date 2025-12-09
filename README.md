@@ -1,4 +1,4 @@
-# Projeto 2 - Sistemas Distribuídos
+# Projeto 4 - Sistemas Distribuídos
 
 ## Autores
 - Rodrigo Antunes - fc57879
@@ -29,10 +29,10 @@ make clean-proto # remove ficheiros gerados pelo ProtoBuf
 
 **Exemplo:**
 ```bash
-./binary/list_server 8000
-./binary/list_client 127.0.0.1:8000
+./binary/list_server 8000 127.0.0.1:2181
+./binary/list_client 127.0.0.1:2181
 ```
 
 ---
 
-**Âmbito:** Projeto nº2 elaborado no âmbito da cadeira de Sistemas Distribuídos 2025/26, FCUL
+**Âmbito:** Projeto nº4 elaborado no âmbito da cadeira de Sistemas Distribuídos 2025/26, FCUL

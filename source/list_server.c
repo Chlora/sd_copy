@@ -21,13 +21,12 @@
 static int s_socket = -1;
 static struct list_t *list = NULL;
 
-static const char* build_local_address(const char* port) {
-    size_t len = 11 + strlen(port) + 1;
-    char *address = malloc(len);
-    if (!address) return NULL;
-    
-    snprintf(address, len, "127.0.0.1:%s", port);
-    return address;
+static int build_local_address(char* buffer, size_t buffer_size, const char* port) {
+    if (!buffer || !port || buffer_size < 11 + strlen(port) + 1) {
+        return -1;
+    }
+    snprintf(buffer, buffer_size, "127.0.0.1:%s", port);
+    return 0;
 }
 
 static void signal_handler(int signum) {
@@ -39,6 +38,9 @@ static void signal_handler(int signum) {
 static void cleanup(void) {
     printf("[SERVER] Cleaning up resources...\n");
 
+    // Sleep to allow threads to complete their cleanup
+    usleep(200000);  // 200ms
+
     // Disconnect from ZooKeeper
     zk_disconnect();
 
@@ -46,12 +48,12 @@ static void cleanup(void) {
         network_server_close(s_socket);
         s_socket = -1;
     }
-    
+
     if (list != NULL) {
         list_skel_destroy(list);
         list = NULL;
     }
-    
+
     printf("[SERVER] Shutdown complete\n");
 }
 
@@ -69,7 +71,11 @@ int main(int argc, char const *argv[]) {
     }
 
     const char *zk_host = argv[2];
-    const char *server_addr = build_local_address(argv[1]);
+    char server_addr[256];
+    if (build_local_address(server_addr, sizeof(server_addr), argv[1]) != 0) {
+        fprintf(stderr, "[ERROR] Failed to build server address\n");
+        return 1;
+    }
 
     // Setup signal handlers
     signal(SIGINT, signal_handler);   // Ctrl+C
