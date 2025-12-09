@@ -187,15 +187,17 @@ struct data_t *rlist_get_by_marca(struct rlist_t *rlist, enum marca_t marca){
 
     MessageT *reply = network_send_receive(rlist, &msg);
 
-    free(tmp);
-
-    if(reply == NULL) return NULL;
+    if(reply == NULL) {
+        free(tmp);
+        return NULL;
+    }
 
     struct data_t *result = NULL;
-    if(reply->opcode ==MESSAGE_T__OPCODE__OP_GET + 1 && reply->data) 
+    if(reply->opcode ==MESSAGE_T__OPCODE__OP_GET + 1 && reply->data)
         result = pb_to_data(reply->data);
 
     message_t__free_unpacked(reply, NULL);
+    free(tmp);
     return result;
 }
 
@@ -220,12 +222,13 @@ struct data_t **rlist_get_by_year(struct rlist_t *rlist, int ano){
 
     MessageT *reply = network_send_receive(rlist, &msg);
 
-    free(tmp);
-
-    if(reply == NULL) return NULL;
+    if(reply == NULL) {
+        free(tmp);
+        return NULL;
+    }
 
     struct data_t **array = NULL;
-    if(reply->opcode == MESSAGE_T__OPCODE__OP_GET + 1 && reply->n_cars >0) {
+    if(reply->opcode == MESSAGE_T__OPCODE__OP_GET + 1) {
         array = malloc((reply->n_cars + 1) * sizeof(struct data_t *));
         if(array){
             for(size_t i = 0; i< reply->n_cars; i++)
@@ -235,6 +238,7 @@ struct data_t **rlist_get_by_year(struct rlist_t *rlist, int ano){
     }
 
     message_t__free_unpacked(reply, NULL);
+    free(tmp);
     return array;
 }
 
@@ -300,7 +304,7 @@ char **rlist_get_model_list(struct rlist_t *rlist){
     if(reply==NULL) return NULL;
 
     char **models = NULL;
-    if (reply->opcode == MESSAGE_T__OPCODE__OP_GETMODELS +1 && reply->n_models > 0 ){
+    if (reply->opcode == MESSAGE_T__OPCODE__OP_GETMODELS +1){
         models = malloc((reply->n_models +1) * sizeof(char *));
         if(models){
             for(size_t i = 0; i < reply->n_models; i++)

@@ -92,7 +92,7 @@ static void handle_get(MessageT *msg, struct list_t *list) {
             set_error(msg);
             return;
         }
-    
+
 
         size_t size = 0;
         Data **pb_cars = data_array_to_pb(cars, &size);
