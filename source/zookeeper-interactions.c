@@ -9,6 +9,8 @@
  * @author Teresa Grangeia - 61869
  */
 
+#define THREADED
+
 #include "client_stub-private.h"
 #include "client_stub.h"
 #include <zookeeper/zookeeper.h>
@@ -88,6 +90,7 @@ void connectToTail(struct String_vector children) {
 
 
 void watcher(zhandle_t *zkH, int type, int state, const char *path, void *watcherCtx) {
+    (void)zkH;
     (void)watcherCtx;
     (void)path;
 
