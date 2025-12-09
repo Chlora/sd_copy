@@ -46,7 +46,7 @@ make clean-proto # remove ficheiros gerados pelo ProtoBuf
 ```
 
 ## Gestão de Memória
-A execução com valgrind poderá reportar memória "still reachable" devido a bibliotecas internas do ZooKeeper. Esta memória é gerida pela biblioteca e libertada automaticamente quando o processo termina, não constituindo um memory leak.
+- A execução com valgrind poderá reportar memória "still reachable" devido a bibliotecas internas do ZooKeeper. Esta memória é gerida pela biblioteca e libertada automaticamente quando o processo termina, não constituindo um memory leak.
 ---
 
 **Âmbito:** Projeto nº4 elaborado no âmbito da cadeira de Sistemas Distribuídos 2025/26, FCUL
