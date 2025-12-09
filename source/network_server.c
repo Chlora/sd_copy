@@ -274,7 +274,7 @@ void *serve_client(void *params) {
     close(client->socket);
     //  Update active client count
     client_disconnected();
-    printf("[SERVER] Client disconnected (Active: %d)\n", get_client_count());
+    printf("[SERVER] Connection closed (Active: %d)\n", get_client_count());
     //  Free client parameters
     free(client);
 
@@ -427,7 +427,7 @@ int network_main_loop(int listening_socket, struct list_t *list) {
             }
         }
 
-printf("[SERVER] Client accepted (Active: %d)\n", count);
+printf("[SERVER] Connection accepted (Active: %d)\n", count);
 
         struct client_params *client_params = init_params(client_socket, &client_addr, list);
         if (client_params == NULL) {

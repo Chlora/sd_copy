@@ -121,7 +121,7 @@ int disconnectFromZookeeper() {
         printf("Erro ao tentar desligar do servidor tail.\n");
     }
     if (result4 == -1) {
-        pritnf("Erro ao tentar destruir o semaforo.\n");
+        printf("Erro ao tentar destruir o semaforo.\n");
     }
 
     sem_post(&mutex);
