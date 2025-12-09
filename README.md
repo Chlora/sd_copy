@@ -26,6 +26,18 @@ make clean-proto # remove ficheiros gerados pelo ProtoBuf
 ```
 
 ## Execução
+**Servidor:**
+```bash
+./binary/list_server <port> <zk_host:zk_port>
+```
+- `<port>`: Porta TCP para o servidor (1024-65535)
+- `<zk_host:zk_port>`: Endereço do servidor ZooKeeper
+
+**Cliente:**
+```bash
+./binary/list_client <zk_host:zk_port>
+```
+- `<zk_host:zk_port>`: Endereço do servidor ZooKeeper
 
 **Exemplo:**
 ```bash
@@ -33,6 +45,8 @@ make clean-proto # remove ficheiros gerados pelo ProtoBuf
 ./binary/list_client 127.0.0.1:2181
 ```
 
+## Gestão de Memória
+A execução com valgrind poderá reportar memória "still reachable" devido a bibliotecas internas do ZooKeeper. Esta memória é gerida pela biblioteca e libertada automaticamente quando o processo termina, não constituindo um memory leak.
 ---
 
 **Âmbito:** Projeto nº4 elaborado no âmbito da cadeira de Sistemas Distribuídos 2025/26, FCUL

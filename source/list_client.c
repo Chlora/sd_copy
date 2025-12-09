@@ -291,7 +291,7 @@ static int dispatch_command(int argc, char **argv) {
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        printf("Uso: list_client address:port\n");
+        printf("Uso: list_client <zk_host:zk_port>\n");
         return -1;
     }
 
