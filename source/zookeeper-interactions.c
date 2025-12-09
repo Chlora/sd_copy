@@ -138,7 +138,7 @@ void watcher(zhandle_t *zkH, int type, int state, const char *path, void *watche
         sem_post(&mutex);
 
         // Dar tempo ao servidor para inicializar a socket
-        sleep(1);
+        sleep(2);
 
         // tenta ligar ao novo head e tail
         connectToHead(children);
