@@ -3,9 +3,6 @@
  * @brief ZooKeeper server-side implementation
  * 
  * SD-12
- * @author Rodrigo Antunes - 57879
- * @author Rodrigo Santos - 61825
- * @author Teresa Grangeia - 61869
  */
 
 #define THREADED

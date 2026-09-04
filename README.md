@@ -1,10 +1,5 @@
 # Projeto 4 - Sistemas Distribuídos
 
-## Autores
-- Rodrigo Antunes - fc57879
-- Rodrigo Santos - fc61825
-- Teresa Grangeia - fc61869
-
 ## Estrutura do Projeto
 ```
 /binary/  - executáveis (list_client, list_server)

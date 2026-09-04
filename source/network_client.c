@@ -4,9 +4,6 @@
  * @brief Client-side network communication module
  * 
  * SD-12
- * @author Rodrigo Antunes - 57879
- * @author Rodrigo Santos - 61825
- * @author Teresa Grangeia - 61869
  */
 
 #include "network_client.h"

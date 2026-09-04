@@ -4,9 +4,6 @@
  * @brief Common network I/O functions for client and server
  * 
  * SD-12
- * @author Rodrigo Antunes - 57879
- * @author Rodrigo Santos - 61825
- * @author Teresa Grangeia - 61869
  */
 
 #include "message-private.h"
